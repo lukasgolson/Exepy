@@ -2,21 +2,25 @@ package main
 
 import (
 	"archive/zip"
+	_ "embed"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
+//go:embed pipeline.zip
+var pipelineZip []byte
+
 const (
-	pipelineDownloadURL = "https://github.com/lukasgolson/PhotogrammetryPipeline/archive/refs/heads/master.zip"
-	pythonDownloadURL   = "https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip"
-	pythonEmbedZip      = "python-3.11.7-embed-amd64.zip"
-	pythonExtractDir    = "python-embed"
-	pthFile             = "python311._pth"
-	pythonInteriorZip   = "python311.zip"
+	pythonDownloadURL = "https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip"
+	pythonEmbedZip    = "python-3.11.7-embed-amd64.zip"
+	pythonExtractDir  = "python-embed"
+	pthFile           = "python311._pth"
+	pythonInteriorZip = "python311.zip"
 )
 
 func main() {
@@ -37,13 +41,13 @@ func main() {
 		}
 
 		// EXTRACT THE EMBEDDED PYTHON ZIP FILE
-		if err := extractZip(pythonEmbedZip, pythonExtractDir); err != nil {
+		if err := extractZip(pythonEmbedZip, pythonExtractDir, 0); err != nil {
 			fmt.Println("Error extracting Python zip file:", err)
 			return
 		}
 
 		// EXTRACT THE EMBEDDED PYTHON INTERIOR ZIP FILE
-		if err := extractZip(filepath.Join(pythonExtractDir, pythonInteriorZip), pythonExtractDir); err != nil {
+		if err := extractZip(filepath.Join(pythonExtractDir, pythonInteriorZip), pythonExtractDir, 0); err != nil {
 			fmt.Println("Error extracting the interiorPython zip file:", err)
 			return
 		}
@@ -87,19 +91,22 @@ func main() {
 		}
 	}
 
-	// if pipeline.zip exists,skip downloading
-	if _, err := os.Stat("pipeline.zip"); os.IsNotExist(err) {
-		// DOWNLOAD files from GitHub
-		if err := downloadFile(pipelineDownloadURL, "pipeline.zip"); err != nil {
-			fmt.Println("Error downloading pipeline zip file:", err)
-			return
-		}
+	// EXTRACT THE PIPELINE ZIP FILE
+
+	// save the pipeline zip file to the current directory
+	if err := os.WriteFile("pipeline.zip", pipelineZip, os.ModePerm); err != nil {
+		fmt.Println("Error saving pipeline zip file:", err)
+		return
 	}
 
-	// EXTRACT THE PIPELINE ZIP FILE
-	if err := extractZip("pipeline.zip", ""); err != nil {
+	if err := extractZip("pipeline.zip", "", 1); err != nil {
 		fmt.Println("Error extracting pipeline zip file:", err)
 		return
+	}
+
+	// delete the pipeline zip file
+	if err := os.Remove("pipeline.zip"); err != nil {
+		fmt.Println("Error deleting pipeline zip file:", err)
 	}
 
 	if err := runCommand(filepath.Join(pythonExtractDir, "python.exe"), "setup.py"); err != nil {
@@ -131,7 +138,7 @@ func downloadFile(url, filePath string) error {
 	return err
 }
 
-func extractZip(zipFile, extractDir string) error {
+func extractZip(zipFile, extractDir string, skipLevels int) error {
 	r, err := zip.OpenReader(zipFile)
 	if err != nil {
 		return err
@@ -139,32 +146,39 @@ func extractZip(zipFile, extractDir string) error {
 	defer r.Close()
 
 	for _, file := range r.File {
-		path := filepath.Join(extractDir, file.Name)
+		// Split the file's path into components
+		components := strings.Split(file.Name, "/")
 
-		if file.FileInfo().IsDir() {
-			os.MkdirAll(path, os.ModePerm)
-			continue
-		}
+		// Skip the first n levels
+		if len(components) > skipLevels {
+			relativePath := strings.Join(components[skipLevels:], "/")
+			path := filepath.Join(extractDir, relativePath)
 
-		if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
-			return err
-		}
+			if file.FileInfo().IsDir() {
+				os.MkdirAll(path, os.ModePerm)
+				continue
+			}
 
-		outFile, err := os.Create(path)
-		if err != nil {
-			return err
-		}
-		defer outFile.Close()
+			if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+				return err
+			}
 
-		rc, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer rc.Close()
+			outFile, err := os.Create(path)
+			if err != nil {
+				return err
+			}
+			defer outFile.Close()
 
-		_, err = io.Copy(outFile, rc)
-		if err != nil {
-			return err
+			rc, err := file.Open()
+			if err != nil {
+				return err
+			}
+			defer rc.Close()
+
+			_, err = io.Copy(outFile, rc)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
