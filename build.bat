@@ -5,8 +5,8 @@ git archive --format zip --output ../pipeline.zip master
 cd ..
 rmdir /S /Q repo
 
-echo Executing go build install.go...
-go build install.go
+echo Executing go build bootstrap.go...
+go build bootstrap.go
 
 if %errorlevel% neq 0 (
     echo Compilation failed.

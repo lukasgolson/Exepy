@@ -94,24 +94,32 @@ func main() {
 	// EXTRACT THE PIPELINE ZIP FILE
 
 	// save the pipeline zip file to the current directory
-	if err := os.WriteFile("pipeline.zip", pipelineZip, os.ModePerm); err != nil {
-		fmt.Println("Error saving pipeline zip file:", err)
-		return
-	}
+	if _, err := os.Stat("bootstrapped"); os.IsNotExist(err) {
+		if err := os.WriteFile("pipeline.zip", pipelineZip, os.ModePerm); err != nil {
+			fmt.Println("Error saving pipeline zip file:", err)
+			return
+		}
 
-	if err := extractZip("pipeline.zip", "", 1); err != nil {
-		fmt.Println("Error extracting pipeline zip file:", err)
-		return
-	}
+		if err := extractZip("pipeline.zip", "", 0); err != nil {
+			fmt.Println("Error extracting pipeline zip file:", err)
+			return
+		}
 
-	// delete the pipeline zip file
-	if err := os.Remove("pipeline.zip"); err != nil {
-		fmt.Println("Error deleting pipeline zip file:", err)
-	}
+		// delete the pipeline zip file
+		if err := os.Remove("pipeline.zip"); err != nil {
+			fmt.Println("Error deleting pipeline zip file:", err)
+		}
 
-	if err := runCommand(filepath.Join(pythonExtractDir, "python.exe"), "setup.py"); err != nil {
-		fmt.Println("Error running setup.py:", err)
-		return
+		if err := runCommand(filepath.Join(pythonExtractDir, "python.exe"), "setup.py"); err != nil {
+			fmt.Println("Error running setup.py:", err)
+			return
+		}
+
+		// save a text file to the current directory to indicate that the bootstrap has been run
+		if err := os.WriteFile("bootstrapped", []byte("Bootstrap has been run"), os.ModePerm); err != nil {
+			fmt.Println("Error saving bootstrap text file:", err)
+			return
+		}
 	}
 
 	if err := runCommand(filepath.Join(pythonExtractDir, "python.exe"), "videoToPointcloud.py"); err != nil {
