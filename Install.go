@@ -11,11 +11,12 @@ import (
 )
 
 const (
-	pythonDownloadURL = "https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip"
-	pythonEmbedZip    = "python-3.11.7-embed-amd64.zip"
-	pythonExtractDir  = "python-embed"
-	pthFile           = "python311._pth"
-	pythonInteriorZip = "python311.zip"
+	pipelineDownloadURL = "https://github.com/lukasgolson/PhotogrammetryPipeline/archive/refs/heads/master.zip"
+	pythonDownloadURL   = "https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip"
+	pythonEmbedZip      = "python-3.11.7-embed-amd64.zip"
+	pythonExtractDir    = "python-embed"
+	pthFile             = "python311._pth"
+	pythonInteriorZip   = "python311.zip"
 )
 
 func main() {
@@ -84,7 +85,21 @@ func main() {
 			fmt.Println("Error creating DLLs folder:", err)
 			return
 		}
+	}
 
+	// if pipeline.zip exists,skip downloading
+	if _, err := os.Stat("pipeline.zip"); os.IsNotExist(err) {
+		// DOWNLOAD files from GitHub
+		if err := downloadFile(pipelineDownloadURL, "pipeline.zip"); err != nil {
+			fmt.Println("Error downloading pipeline zip file:", err)
+			return
+		}
+	}
+
+	// EXTRACT THE PIPELINE ZIP FILE
+	if err := extractZip("pipeline.zip", ""); err != nil {
+		fmt.Println("Error extracting pipeline zip file:", err)
+		return
 	}
 
 	if err := runCommand(filepath.Join(pythonExtractDir, "python.exe"), "setup.py"); err != nil {
