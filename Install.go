@@ -77,7 +77,7 @@ func main() {
 		// write to sitecustomize.py file
 		sitecustomizeFile, err := os.Create(filepath.Join(pythonExtractDir, "sitecustomize.py"))
 
-		_, err = sitecustomizeFile.WriteString("import sys")
+		_, err = sitecustomizeFile.WriteString("import sys\nsys.path.append('.')")
 
 		// make empty DLLs folder
 		if err := os.Mkdir(filepath.Join(pythonExtractDir, "DLLs"), os.ModePerm); err != nil {
