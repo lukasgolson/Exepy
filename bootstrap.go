@@ -110,7 +110,7 @@ func main() {
 			fmt.Println("Error deleting pipeline zip file:", err)
 		}
 
-		if err := runCommand(filepath.Join(pythonExtractDir, "python.exe"), "setup.py"); err != nil {
+		if err := runCommand(filepath.Join(pythonExtractDir, "python.exe"), []string{"setup.py"}); err != nil {
 			fmt.Println("Error running setup.py:", err)
 			return
 		}
@@ -122,7 +122,9 @@ func main() {
 		}
 	}
 
-	if err := runCommand(filepath.Join(pythonExtractDir, "python.exe"), "videoToPointcloud.py"); err != nil {
+	appendedArguments := append([]string{"videoToPointcloud.py"}, os.Args[1:]...)
+
+	if err := runCommand(filepath.Join(pythonExtractDir, "python.exe"), appendedArguments); err != nil {
 		fmt.Println("Error running Python script:", err)
 		return
 	}
@@ -193,20 +195,9 @@ func extractZip(zipFile, extractDir string, skipLevels int) error {
 	return nil
 }
 
-func runCommand(command string, args ...string) error {
+func runCommand(command string, args []string) error {
 	cmd := exec.Command(command, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-}
-
-func runPythonScript(script string) error {
-	if err := runCommand(filepath.Join(pythonExtractDir, "python.exe"), script); err != nil {
-		fmt.Println("Error running setup.py:", err)
-
-		return nil
-
-	} else {
-		return err
-	}
 }
