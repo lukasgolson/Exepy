@@ -47,13 +47,13 @@ func CopyFile(src, dst string) error {
 	return nil
 }
 
-func DoesFileExist(path string) bool {
+func DoesPathExist(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
 }
 
 func RemoveIfExists(path string) {
-	if DoesFileExist(path) {
+	if DoesPathExist(path) {
 		err := os.RemoveAll(path)
 
 		if err != nil {

@@ -28,7 +28,7 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 	}
 
 	// DOWNLOAD PIP FILE
-	if err := common.DownloadFile(settings.PipDownloadURL, filepath.Join(settings.PythonExtractDir, common.GetPipScriptName())); err != nil {
+	if err := common.DownloadFile(settings.PipDownloadURL, common.GetPipName(settings.PythonExtractDir)); err != nil {
 		fmt.Println("Error downloading pip module:", err)
 		return nil, nil, err
 	}
@@ -47,28 +47,27 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 		return nil, nil, err
 	}
 
+	wheelsPath := filepath.Join(settings.PythonExtractDir, "wheels")
+	os.Mkdir(wheelsPath, os.ModePerm)
+
 	requirementsFilePath := filepath.Join(settings.PayloadDir, settings.RequirementsFile)
 
 	if requirementsFilePath != "" {
 
 		if _, err := os.Stat(requirementsFilePath); !os.IsNotExist(err) {
 
-			wheelsPath := filepath.Join(settings.PythonExtractDir, "wheels")
-
 			if err := buildRequirementWheels(settings.PythonExtractDir, requirementsFilePath, wheelsPath); err != nil {
 				return nil, nil, err
 			}
-
-			wheelsStream, _ := common.CompressDirToStream(wheelsPath)
-
-			return pythonStream, wheelsStream, nil
 
 		} else {
 			fmt.Println("Requirements file not found but is specified in configuration:", requirementsFilePath)
 		}
 	}
 
-	return pythonStream, nil, nil
+	wheelsStream, _ := common.CompressDirToStream(wheelsPath)
+
+	return pythonStream, wheelsStream, nil
 }
 
 func createBasePythonInstallation(settings *common.PythonSetupSettings, pythonZip string) error {
@@ -149,11 +148,6 @@ func updatePTHFile(settings *common.PythonSetupSettings) error {
 
 func buildRequirementWheels(extractDir, requirementsFile, wheelDir string) error {
 
-	// RUN THE PIP INSTALLER
-	if err := common.RunCommand(filepath.Join(extractDir, "python.exe"), []string{filepath.Join(extractDir, common.GetPipScriptName())}); err != nil {
-		fmt.Println("Error running "+common.GetPipScriptName(), err)
-	}
-
 	pythonPath := filepath.Join(extractDir, "python.exe")
 
 	// copy the requirements file to the python code directory using io.copy
@@ -164,12 +158,12 @@ func buildRequirementWheels(extractDir, requirementsFile, wheelDir string) error
 		return err
 	}
 
-	if err := common.RunCommand(pythonPath, []string{"-m", "pip", "wheel", "-w", wheelDir, "-r", requirementsFile}); err != nil {
+	if err := common.RunCommand(pythonPath, []string{"-m", common.GetPipName(extractDir), "wheel", "-w", wheelDir, "-r", requirementsFile}); err != nil {
 		fmt.Println("Error building wheels:", err)
 		return err
 	}
 
-	if err := common.RunCommand(pythonPath, []string{"-m", "pip", "cache", "purge"}); err != nil {
+	if err := common.RunCommand(pythonPath, []string{"-m", common.GetPipName(extractDir), "cache", "purge"}); err != nil {
 		fmt.Println("Error building wheels:", err)
 		return err
 	}

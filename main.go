@@ -8,6 +8,7 @@ import (
 	"lukasolson.net/common"
 	"lukasolson.net/pythonPreparer"
 	"os"
+	"path"
 )
 
 const settingsFileName = "settings.json"
@@ -19,10 +20,27 @@ func main() {
 		panic(err)
 	}
 
+	pythonScriptPath := path.Join(settings.PayloadDir, settings.PayloadScript)
+	requirementsPath := path.Join(settings.PayloadDir, settings.RequirementsFile)
+
 	// check if payload directory exists
-	if _, err := os.Stat(settings.PayloadDir); os.IsNotExist(err) {
+	if common.DoesPathExist(settings.PayloadDir) {
 		println("Payload directory does not exist: ", settings.PayloadDir)
 		return
+	}
+
+	// check if payload directory has the main file
+	if common.DoesPathExist(pythonScriptPath) {
+		println("Main file does not exist: ", pythonScriptPath)
+		return
+	}
+
+	// if requirements file is listed, check that it exists
+	if settings.RequirementsFile != "" {
+		if common.DoesPathExist(requirementsPath) {
+			println("Requirements file is listed in config but does not exist: ", requirementsPath)
+			return
+		}
 	}
 
 	file, err := os.Create("launch.exe")
@@ -32,7 +50,7 @@ func main() {
 
 	defer file.Close()
 
-	pythonFile, _, err := pythonPreparer.PreparePython(*settings)
+	pythonFile, wheelsFile, err := pythonPreparer.PreparePython(*settings)
 	if err != nil {
 		panic(err)
 	}
@@ -45,7 +63,7 @@ func main() {
 	SettingsFile, err := os.Open(settingsFileName)
 	defer SettingsFile.Close()
 
-	embedMap := createEmbedMap(pythonFile, PayloadFile, SettingsFile)
+	embedMap := createEmbedMap(pythonFile, PayloadFile, wheelsFile, SettingsFile)
 
 	embedPayload(file, embedMap)
 
@@ -53,12 +71,13 @@ func main() {
 
 }
 
-func createEmbedMap(PythonRS, PayloadRS io.ReadSeeker, SettingsFile io.ReadSeeker) map[string]io.ReadSeeker {
+func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile io.ReadSeeker) map[string]io.ReadSeeker {
 
 	embedMap := make(map[string]io.ReadSeeker)
 
 	embedMap[common.GetPythonEmbedName()] = PythonRS
 	embedMap[common.GetPayloadEmbedName()] = PayloadRS
+	embedMap[common.GetWheelsEmbedName()] = wheelsFile
 	embedMap[common.GetConfigEmbedName()] = SettingsFile
 
 	return embedMap
@@ -74,5 +93,8 @@ func embedPayload(writer io.Writer, attachments map[string]io.ReadSeeker) {
 
 	reader := bytes.NewReader(copiedByteArray)
 
-	embedding.Embed(writer, reader, attachments, nil)
+	err := embedding.Embed(writer, reader, attachments, nil)
+	if err != nil {
+		return
+	}
 }

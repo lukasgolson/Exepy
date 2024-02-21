@@ -8,7 +8,7 @@ import (
 
 const (
 	pythonDownloadURL  = "https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip"
-	pipDownloadURL     = "https://bootstrap.pypa.io/pip/get-pip.py"
+	pipDownloadURL     = "https://bootstrap.pypa.io/pip/pip.pyz"
 	pythonDownloadFile = "python code-3.11.7-embed-amd64.zip"
 	pythonExtractDir   = "python-embed"
 	pthFile            = "python311._pth"

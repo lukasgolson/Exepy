@@ -1,21 +1,29 @@
 package common
 
-const PythonFileName = "python.tar.GZ"
-const PayloadFileName = "payload.tar.GZ"
-const getPipScriptName = "get-pip.py"
+import "path/filepath"
+
+const pythonFilename = "python"
+const payloadFilename = "payload"
+const wheelsFilename = "wheels"
+
+const pipFilename = "pip.pyz"
 
 func GetPythonEmbedName() string {
-	return PythonFileName
+	return pythonFilename
 }
 
 func GetPayloadEmbedName() string {
-	return PayloadFileName
+	return payloadFilename
 }
 
 func GetConfigEmbedName() string {
 	return "settings.json"
 }
 
-func GetPipScriptName() string {
-	return getPipScriptName
+func GetPipName(extractDir string) string {
+	return filepath.Join(extractDir, pipFilename)
+}
+
+func GetWheelsEmbedName() string {
+	return wheelsFilename
 }

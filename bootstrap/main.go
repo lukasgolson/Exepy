@@ -7,6 +7,7 @@ import (
 	"io"
 	"lukasolson.net/common"
 	"os"
+	"path"
 	"path/filepath"
 )
 
@@ -19,17 +20,10 @@ func main() {
 	}
 	defer attachments.Close()
 
-	contents := attachments.List()
-
-	for _, file := range contents {
-		fmt.Println(file)
-
-	}
-
 	PythonReader := attachments.Reader(common.GetPythonEmbedName())
 
 	if PythonReader == nil {
-		fmt.Println("Error reading python. Ensure it is embedded in the binary.")
+		fmt.Println("Error reading Python. Ensure it is embedded in the binary.")
 		return
 	}
 
@@ -37,6 +31,13 @@ func main() {
 
 	if PayloadReader == nil {
 		fmt.Println("Error reading payload. Ensure it is embedded in the binary.")
+		return
+	}
+
+	// EXTRACT THE WHEELS ZIP FILE
+	wheelsReader := attachments.Reader(common.GetWheelsEmbedName())
+	if wheelsReader == nil {
+		fmt.Println("Error reading wheels. Ensure it is embedded in the binary.")
 		return
 	}
 
@@ -52,8 +53,9 @@ func main() {
 
 	// check if the bootstrap has already been run
 	if _, err := os.Stat("bootstrapped"); os.IsNotExist(err) {
+		// if the bootstrap has not been run, extract the Python and program files
 
-		fmt.Println("Extracting Python and program files...")
+		fmt.Println("Performing first time setup...")
 
 		// EXTRACT THE PYTHON ZIP FILE
 		err = common.DecompressIOStream(PythonReader, settings.PythonExtractDir)
@@ -69,11 +71,20 @@ func main() {
 			return
 		}
 
+		wheelsDir := path.Join(settings.PythonExtractDir, common.GetWheelsEmbedName())
+
+		// EXTRACT THE WHEELS ZIP FILE
+		err = common.DecompressIOStream(wheelsReader, wheelsDir)
+		if err != nil {
+			fmt.Println("Error extracting wheels zip file:", err)
+			return
+		}
+
 		pythonPath := filepath.Join(settings.PythonExtractDir, "python.exe")
 
 		// if requirements.txt exists, install the requirements
 		if _, err := os.Stat(settings.RequirementsFile); err == nil {
-			if err := common.RunCommand(pythonPath, []string{"-m", "pip", "install", "--find-links=" + settings.PythonExtractDir + "/wheels/", "-r", settings.RequirementsFile}); err != nil {
+			if err := common.RunCommand(pythonPath, []string{"-m", common.GetPipName(settings.PythonExtractDir), "install", "--find-links=" + wheelsDir + string(os.PathSeparator), "-r", settings.RequirementsFile}); err != nil {
 				fmt.Println("Error installing requirements:", err)
 				return
 			}
@@ -96,6 +107,8 @@ func main() {
 	}
 
 	// run the payload script
+
+	fmt.Println("Running script...")
 
 	appendedArguments := append([]string{settings.PayloadScript}, os.Args[1:]...)
 

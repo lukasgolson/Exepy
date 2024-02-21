@@ -3,7 +3,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"github.com/mholt/archiver/v4"
 	"io"
 	"os"
@@ -60,8 +59,6 @@ func DecompressIOStream(IOReader io.Reader, outputDir string) error {
 
 	handler := func(ctx context.Context, archivedFile archiver.File) error {
 
-		fmt.Println("Extracting:", archivedFile.NameInArchive)
-
 		outPath := filepath.Join(outputDir, archivedFile.NameInArchive)
 
 		if archivedFile.FileInfo.IsDir() {
@@ -70,14 +67,10 @@ func DecompressIOStream(IOReader io.Reader, outputDir string) error {
 				return err
 			}
 
-			fmt.Println("Created leaf directory:", outPath)
-
 			return nil
 		} else {
 			dir := filepath.Dir(outPath)
 			err := os.MkdirAll(dir, os.ModePerm)
-
-			fmt.Println("Created directory:", dir)
 
 			if err != nil {
 				return err
@@ -101,8 +94,6 @@ func DecompressIOStream(IOReader io.Reader, outputDir string) error {
 		// Write the outputFileStream
 		_, err = io.Copy(outputFileStream, archivedFileStream)
 
-		fmt.Println("Created file:", outPath)
-
 		if err != nil {
 			return err
 		}
@@ -116,8 +107,6 @@ func DecompressIOStream(IOReader io.Reader, outputDir string) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("Extraction complete to:", outputDir)
 
 	return nil
 }
@@ -169,11 +158,6 @@ func mapFilesAndDirectories(directoryPath string) (map[string]string, error) {
 	// Check for errors during the walk
 	if err != nil {
 		return nil, err
-	}
-
-	// loop through the map and print the key-value pairs
-	for key, value := range fileMap {
-		fmt.Println(key, " -> ", value)
 	}
 
 	return fileMap, nil
