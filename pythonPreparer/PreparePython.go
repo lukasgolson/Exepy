@@ -1,4 +1,4 @@
-package main
+package pythonPreparer
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ const (
 	settingsFile = "settings.json"
 )
 
-func preparePython() {
+func PreparePython() {
 
 	settings, err := loadOrSaveDefault(settingsFile)
 	if err != nil {
@@ -38,7 +38,7 @@ func preparePython() {
 		return
 	}
 
-	if err := CreateBasePythonInstallation(settings, settings.PythonDownloadZip); err != nil {
+	if err := createBasePythonInstallation(settings, settings.PythonDownloadZip); err != nil {
 		fmt.Println("Error creating base Python installation:", err)
 		return
 	}
@@ -65,23 +65,23 @@ func preparePython() {
 
 }
 
-func CreateBasePythonInstallation(settings *pythonSetupSettings, pythonZip string) error {
+func createBasePythonInstallation(settings *pythonSetupSettings, pythonZip string) error {
 	// EXTRACT THE Python ZIP FILE
 	if err := common.ExtractZip(pythonZip, settings.PythonExtractDir, 0); err != nil {
 		fmt.Println("Error extracting Python zip file:", err)
 		return err
 	}
 
-	if err := ExtractInteriorPythonZip(settings); err != nil {
+	if err := extractInteriorPythonArchive(settings); err != nil {
 		return err
 	}
 
-	if err := UpdatePTHFile(settings); err != nil {
+	if err := updatePTHFile(settings); err != nil {
 		return err
 	}
 
 	// write to sitecustomize.py file
-	if err := CreateSiteCustomizeFile(settings); err != nil {
+	if err := createSiteCustomFile(settings); err != nil {
 		return err
 	}
 
@@ -100,7 +100,7 @@ func CreateBasePythonInstallation(settings *pythonSetupSettings, pythonZip strin
 	return nil
 }
 
-func ExtractInteriorPythonZip(settings *pythonSetupSettings) error {
+func extractInteriorPythonArchive(settings *pythonSetupSettings) error {
 	// EXTRACT THE EMBEDDED PYTHON INTERIOR ZIP FILE
 
 	if err := common.ExtractZip(filepath.Join(settings.PythonExtractDir, settings.PythonInteriorZip), settings.PythonExtractDir, 0); err != nil {
@@ -112,7 +112,7 @@ func ExtractInteriorPythonZip(settings *pythonSetupSettings) error {
 	return nil
 }
 
-func CreateSiteCustomizeFile(settings *pythonSetupSettings) error {
+func createSiteCustomFile(settings *pythonSetupSettings) error {
 	sitecustomizeFile, err := os.Create(filepath.Join(settings.PythonExtractDir, "sitecustomize.py"))
 
 	if err != nil {
@@ -128,7 +128,7 @@ func CreateSiteCustomizeFile(settings *pythonSetupSettings) error {
 	return nil
 }
 
-func UpdatePTHFile(settings *pythonSetupSettings) error {
+func updatePTHFile(settings *pythonSetupSettings) error {
 	removeIfExists(filepath.Join(settings.PythonExtractDir, settings.PthFile))
 
 	// write to ._pth file

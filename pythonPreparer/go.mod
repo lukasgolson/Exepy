@@ -1,4 +1,4 @@
-module main
+module lukasolson.net/pythonPreparer
 
 go 1.21.0
 
