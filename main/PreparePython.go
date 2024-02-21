@@ -3,17 +3,18 @@ package main
 import (
 	"fmt"
 	"io"
+	common "lukasolson.net/common"
 	"net/http"
 	"os"
 	"path/filepath"
 )
 
 const (
-	resultZip    = "python-embed.gzip"
+	outputZip    = "python.tar.GZ"
 	settingsFile = "settings.json"
 )
 
-func main() {
+func preparePython() {
 
 	settings, err := loadOrSaveDefault(settingsFile)
 	if err != nil {
@@ -21,10 +22,7 @@ func main() {
 	}
 
 	cleanDirectory(settings)
-
-	removeIfExists(resultZip)
-
-	defer cleanDirectory(settings) // Clean up the directory after the program finishes
+	removeIfExists(outputZip)
 
 	// CREATE THE EXTRACTION DIRECTORY
 	if _, err := os.Stat(settings.PythonExtractDir); os.IsNotExist(err) {
@@ -35,57 +33,149 @@ func main() {
 	}
 
 	// DOWNLOAD PYTHON ZIP FILE
-	if err := downloadFile(settings.PythonDownloadURL, settings.PythonEmbedZip); err != nil {
+	if err := downloadFile(settings.PythonDownloadURL, settings.PythonDownloadZip); err != nil {
 		fmt.Println("Error downloading Python zip file:", err)
 		return
 	}
 
-	// EXTRACT THE EMBEDDED PYTHON ZIP FILE
-	if err := extractZip(settings.PythonEmbedZip, settings.PythonExtractDir, 0); err != nil {
+	if err := CreateBasePythonInstallation(settings, settings.PythonDownloadZip); err != nil {
+		fmt.Println("Error creating base Python installation:", err)
+		return
+	}
+
+	removeIfExists(settings.PythonDownloadZip)
+
+	if settings.RequirementsFile != "" {
+
+		if _, err := os.Stat(settings.RequirementsFile); !os.IsNotExist(err) {
+
+			if err := setupRequirements(settings.PythonExtractDir, settings.RequirementsFile); err != nil {
+				return
+			}
+
+		} else {
+			fmt.Println("Requirements file not found but is specified in configuration:", settings.RequirementsFile)
+		}
+	}
+
+	if err := common.CompressDir(settings.PythonExtractDir, outputZip); err != nil {
+		fmt.Println("Error zipping Python directory:", err)
+		return
+	}
+
+}
+
+func CreateBasePythonInstallation(settings *pythonSetupSettings, pythonZip string) error {
+	// EXTRACT THE Python ZIP FILE
+	if err := common.ExtractZip(pythonZip, settings.PythonExtractDir, 0); err != nil {
 		fmt.Println("Error extracting Python zip file:", err)
-		return
+		return err
 	}
 
+	if err := ExtractInteriorPythonZip(settings); err != nil {
+		return err
+	}
+
+	if err := UpdatePTHFile(settings); err != nil {
+		return err
+	}
+
+	// write to sitecustomize.py file
+	if err := CreateSiteCustomizeFile(settings); err != nil {
+		return err
+	}
+
+	// make empty DLLs folder
+	if err := os.Mkdir(filepath.Join(settings.PythonExtractDir, "DLLs"), os.ModePerm); err != nil {
+		fmt.Println("Error creating DLLs folder:", err)
+		return err
+	}
+
+	// DOWNLOAD PIP FILE
+	if err := downloadFile(settings.PipDownloadURL, settings.PythonExtractDir+"/get-pip.py"); err != nil {
+		fmt.Println("Error downloading pip module:", err)
+		return err
+	}
+
+	return nil
+}
+
+func ExtractInteriorPythonZip(settings *pythonSetupSettings) error {
 	// EXTRACT THE EMBEDDED PYTHON INTERIOR ZIP FILE
-	if err := extractZip(filepath.Join(settings.PythonExtractDir, settings.PythonInteriorZip), settings.PythonExtractDir, 0); err != nil {
+
+	if err := common.ExtractZip(filepath.Join(settings.PythonExtractDir, settings.PythonInteriorZip), settings.PythonExtractDir, 0); err != nil {
 		fmt.Println("Error extracting the interiorPython zip file:", err)
-		return
+		return err
 	}
 
-	// CLEAN UP THE EXTRACTED FILES
-	removeIfExists(settings.PythonEmbedZip)
 	removeIfExists(filepath.Join(settings.PythonExtractDir, settings.PythonInteriorZip))
+	return nil
+}
+
+func CreateSiteCustomizeFile(settings *pythonSetupSettings) error {
+	sitecustomizeFile, err := os.Create(filepath.Join(settings.PythonExtractDir, "sitecustomize.py"))
+
+	if err != nil {
+		return err
+	}
+
+	_, err = sitecustomizeFile.WriteString("import sys\nsys.path.append('.')")
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func UpdatePTHFile(settings *pythonSetupSettings) error {
 	removeIfExists(filepath.Join(settings.PythonExtractDir, settings.PthFile))
 
 	// write to ._pth file
 	pthFile, err := os.Create(filepath.Join(settings.PythonExtractDir, settings.PthFile))
 	if err != nil {
 		fmt.Println("Error creating ._pth file:", err)
-		return
+		return nil
 	}
 
 	// change python311 to pythonExtractDir
 	_, err = pthFile.WriteString(".\\" + settings.PythonExtractDir + "\n.\\Scripts\n.\n# importing site will run sitecustomize.py\nimport site")
 	if err != nil {
 		fmt.Println("Error writing to ._pth file:", err)
-		return
+		return nil
+	}
+	return err
+}
+
+func setupRequirements(extractDir, requirementsFile string) error {
+
+	pythonPath := filepath.Join(extractDir, "python.exe")
+
+	if err := runCommand(pythonPath, []string{filepath.Join(extractDir, "get-pip.py")}); err != nil {
+		fmt.Println("Error running get-pip.py:", err)
+		return err
 	}
 
-	// write to sitecustomize.py file
-	sitecustomizeFile, err := os.Create(filepath.Join(settings.PythonExtractDir, "sitecustomize.py"))
-	_, err = sitecustomizeFile.WriteString("import sys\nsys.path.append('.')")
+	// copy the requirements file to the python code directory using io.copy
+	installRequirementsPath := filepath.Join(extractDir, requirementsFile)
 
-	// make empty DLLs folder
-	if err := os.Mkdir(filepath.Join(settings.PythonExtractDir, "DLLs"), os.ModePerm); err != nil {
-		fmt.Println("Error creating DLLs folder:", err)
-		return
+	if err := copyFile(requirementsFile, installRequirementsPath); err != nil {
+		fmt.Println("Error copying requirements file:", err)
+		return err
 	}
 
-	if err := zipDirectory(settings.PythonExtractDir, resultZip); err != nil {
-		fmt.Println("Error zipping Python directory:", err)
-		return
+	if err := runCommand(pythonPath, []string{"-m", "pip", "wheel", "-w", filepath.Join(extractDir, "wheels"), "-r", requirementsFile}); err != nil {
+		fmt.Println("Error building wheels:", err)
+		return err
 	}
 
+	defer func(command string, args []string) {
+		err := runCommand(command, args)
+		if err != nil {
+			fmt.Println("Error running command:", err)
+		}
+	}(pythonPath, []string{"-m", "pip", "cache", "purge"}) // Clean up the pip cache after the program finishes
+	return nil
 }
 
 func downloadFile(url, filePath string) error {
@@ -107,7 +197,7 @@ func downloadFile(url, filePath string) error {
 
 func cleanDirectory(settings *pythonSetupSettings) {
 	removeIfExists(settings.PythonExtractDir)
-	removeIfExists(settings.PythonEmbedZip)
+	removeIfExists(settings.PythonDownloadZip)
 
 	println("Directory cleaned")
 }
@@ -127,4 +217,27 @@ func removeIfExists(path string) {
 	}
 
 	fmt.Println("Successfully deleted:", path)
+}
+
+func copyFile(src, dst string) error {
+
+	from, err := os.Open(src)
+	if err != nil {
+		fmt.Println("Error opening requirements file:", err)
+		return err
+	}
+
+	to, err := os.Create(dst)
+	if err != nil {
+		fmt.Println("Error creating requirements file:", err)
+		return err
+	}
+
+	_, err = io.Copy(to, from)
+	if err != nil {
+		fmt.Println("Error copying requirements file:", err)
+		return err
+	}
+
+	return nil
 }

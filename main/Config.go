@@ -6,19 +6,22 @@ import (
 )
 
 const (
-	pythonDownloadURL = "https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip"
-	pythonEmbedZip    = "python-3.11.7-embed-amd64.zip"
-	pythonExtractDir  = "python-embed"
-	pthFile           = "python311._pth"
-	pythonInteriorZip = "python311.zip"
+	pythonDownloadURL  = "https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip"
+	pipDownloadURL     = "https://bootstrap.pypa.io/pip/get-pip.py"
+	pythonDownloadFile = "python code-3.11.7-embed-amd64.zip"
+	pythonExtractDir   = "python-embed"
+	pthFile            = "python311._pth"
+	pythonInteriorZip  = "python311.zip"
 )
 
 type pythonSetupSettings struct {
 	PythonDownloadURL string `json:"pythonDownloadURL"`
-	PythonEmbedZip    string `json:"pythonEmbedZip"`
+	PipDownloadURL    string `json:"pipDownloadURL"`
+	PythonDownloadZip string `json:"pythonDownloadFile"`
 	PythonExtractDir  string `json:"pythonExtractDir"`
 	PthFile           string `json:"pthFile"`
 	PythonInteriorZip string `json:"pythonInteriorZip"`
+	RequirementsFile  string `json:"requirementsFile"`
 }
 
 func loadSettings(filename string) (*pythonSetupSettings, error) {
@@ -55,10 +58,12 @@ func loadOrSaveDefault(filename string) (*pythonSetupSettings, error) {
 	if err != nil {
 		settings = &pythonSetupSettings{
 			PythonDownloadURL: pythonDownloadURL,
-			PythonEmbedZip:    pythonEmbedZip,
+			PipDownloadURL:    pipDownloadURL,
+			PythonDownloadZip: pythonDownloadFile,
 			PythonExtractDir:  pythonExtractDir,
 			PthFile:           pthFile,
 			PythonInteriorZip: pythonInteriorZip,
+			RequirementsFile:  "requirements.txt",
 		}
 		err = saveSettings(settingsFile, settings)
 		if err != nil {

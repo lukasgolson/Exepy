@@ -1,4 +1,4 @@
-package main
+package common
 
 import (
 	"archive/zip"
@@ -11,7 +11,15 @@ import (
 	"strings"
 )
 
-func zipDirectory(directoryPath, zipfilename string) error {
+func getFormat() archiver.CompressedArchive {
+	format := archiver.CompressedArchive{
+		Compression: archiver.Gz{},
+		Archival:    archiver.Tar{},
+	}
+	return format
+}
+
+func CompressDir(directoryPath, zipfilename string) error {
 	// Get the list of files and directories in the specified folder
 
 	FromDiskOptions := &archiver.FromDiskOptions{
@@ -45,12 +53,7 @@ func zipDirectory(directoryPath, zipfilename string) error {
 		}
 	}(out)
 
-	// we can use the CompressedArchive type to gzip a tarball
-	// (compression is not required; you could use Tar directly)
-	format := archiver.CompressedArchive{
-		Compression: archiver.Gz{},
-		Archival:    archiver.Tar{},
-	}
+	format := getFormat()
 
 	// create the archive
 	err = format.Archive(context.Background(), out, files)
@@ -61,7 +64,59 @@ func zipDirectory(directoryPath, zipfilename string) error {
 	return nil
 }
 
-func extractZip(zipFile, extractDir string, skipLevels int) error {
+func DecompressDir(IOReader io.Reader, directoryPath string) error {
+
+	format := getFormat()
+
+	handler := func(ctx context.Context, f archiver.File) error {
+
+		if f.FileInfo.IsDir() {
+			// create the directory
+			err := os.MkdirAll(filepath.Join(directoryPath, f.Name()), os.ModePerm)
+
+			if err != nil {
+				return err
+			}
+		} else {
+
+			// create the file
+			err := os.MkdirAll(filepath.Join(directoryPath, f.Name()), os.ModePerm)
+
+			if err != nil {
+				return err
+			}
+
+			// write bytes to file
+			outFile, err := os.Create(filepath.Join(directoryPath, f.Name()))
+
+			reader, _ := f.Open()
+			defer func(reader io.ReadCloser) {
+				err := reader.Close()
+				if err != nil {
+					fmt.Println("Error closing reader:", err)
+				}
+			}(reader)
+
+			_, err = io.Copy(outFile, reader)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	ctx := context.Background()
+
+	err := format.Extract(ctx, IOReader, nil, handler)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ExtractZip(zipFile, extractDir string, skipLevels int) error {
 	r, err := zip.OpenReader(zipFile)
 	if err != nil {
 		return err
