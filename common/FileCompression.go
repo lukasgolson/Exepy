@@ -1,7 +1,6 @@
 package common
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"fmt"
@@ -9,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 func getFormat() archiver.CompressedArchive {
@@ -18,51 +16,6 @@ func getFormat() archiver.CompressedArchive {
 		Archival:    archiver.Tar{},
 	}
 	return format
-}
-
-func CompressDir(directoryPath, zipfilename string) error {
-	// Get the list of files and directories in the specified folder
-
-	FromDiskOptions := &archiver.FromDiskOptions{
-		FollowSymlinks:  true,
-		ClearAttributes: true,
-	}
-
-	// map the files to the archive
-
-	pathMap, err := mapFilesAndDirectories(directoryPath)
-	if err != nil {
-		return err
-	}
-
-	// Create a new zip archive
-	files, err := archiver.FilesFromDisk(FromDiskOptions, pathMap)
-
-	if err != nil {
-		return err
-	}
-
-	// create the output file we'll write to
-	out, err := os.Create(zipfilename)
-	if err != nil {
-		return err
-	}
-	defer func(out *os.File) {
-		err := out.Close()
-		if err != nil {
-			fmt.Println("Error closing file:", err)
-		}
-	}(out)
-
-	format := getFormat()
-
-	// create the archive
-	err = format.Archive(context.Background(), out, files)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func CompressDirToStream(directoryPath string) (io.ReadSeeker, error) {
@@ -101,40 +54,55 @@ func CompressDirToStream(directoryPath string) (io.ReadSeeker, error) {
 	return readSeeker, nil
 }
 
-func DecompressIOStream(IOReader io.Reader, directoryPath string) error {
+func DecompressIOStream(IOReader io.Reader, outputDir string) error {
 
 	format := getFormat()
 
-	handler := func(ctx context.Context, f archiver.File) error {
+	handler := func(ctx context.Context, archivedFile archiver.File) error {
 
-		// Create parent directories
-		err := os.MkdirAll(filepath.Join(directoryPath, filepath.Dir(f.Name())), os.ModePerm)
+		outPath := filepath.Join(outputDir, archivedFile.FileInfo.Name())
 
-		if err != nil {
-			fmt.Println("Error creating parent directories:", err)
+		if archivedFile.FileInfo.IsDir() {
+			err := os.MkdirAll(outPath, os.ModePerm)
+			if err != nil {
+				return err
+			}
+
+			fmt.Println("Created leaf directory:", outPath)
+
+			return nil
+		} else {
+			dir := filepath.Dir(outPath)
+			err := os.MkdirAll(dir, os.ModePerm)
+
+			fmt.Println("Created directory:", dir)
+
+			if err != nil {
+				return err
+			}
 		}
 
-		if !f.FileInfo.IsDir() {
+		// Create the outputFileStream
+		outputFileStream, err := os.Create(outPath)
+		if err != nil {
+			return err
+		}
 
-			// write bytes to file
-			outFile, err := os.Create(filepath.Join(directoryPath, f.Name()))
+		defer outputFileStream.Close()
 
-			reader, _ := f.Open()
+		archivedFileStream, err := archivedFile.Open()
+		if err != nil {
+			return err
+		}
+		defer archivedFileStream.Close()
 
-			// gross but it works
-			fileContents, err := io.ReadAll(reader)
+		// Write the outputFileStream
+		_, err = io.Copy(outputFileStream, archivedFileStream)
 
-			defer func(reader io.ReadCloser) {
-				err := reader.Close()
-				if err != nil {
-					fmt.Println("Error closing reader:", err)
-				}
-			}(reader)
+		fmt.Println("Created file:", outPath)
 
-			_, err = io.Copy(outFile, bytes.NewReader(fileContents))
-			if err != nil {
-				fmt.Println("Error copying file", err)
-			}
+		if err != nil {
+			return err
 		}
 
 		return nil
@@ -147,84 +115,77 @@ func DecompressIOStream(IOReader io.Reader, directoryPath string) error {
 		return err
 	}
 
-	return nil
-}
-
-func ExtractZip(zipFile, extractDir string, skipLevels int) error {
-	r, err := zip.OpenReader(zipFile)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	for _, file := range r.File {
-		// Split the file's path into components
-		components := strings.Split(file.Name, "/")
-
-		// Skip the first n levels
-		if len(components) > skipLevels {
-			relativePath := strings.Join(components[skipLevels:], "/")
-			path := filepath.Join(extractDir, relativePath)
-
-			if file.FileInfo().IsDir() {
-				os.MkdirAll(path, os.ModePerm)
-				continue
-			}
-
-			if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
-				return err
-			}
-
-			outFile, err := os.Create(path)
-			if err != nil {
-				return err
-			}
-			defer outFile.Close()
-
-			rc, err := file.Open()
-			if err != nil {
-				return err
-			}
-			defer rc.Close()
-
-			_, err = io.Copy(outFile, rc)
-			if err != nil {
-				return err
-			}
-		}
-	}
+	fmt.Println("Extraction complete to:", outputDir)
 
 	return nil
 }
 
-func mapFilesAndDirectories(root string) (map[string]string, error) {
-	paths := make(map[string]string)
+func mapFilesAndDirectories(directoryPath string) (map[string]string, error) {
+	// Initialize a map to store file names and their corresponding paths
+	fileMap := make(map[string]string)
 
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	// Walk through the directory
+	err := filepath.WalkDir(directoryPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Skip the root directory
-		if path == root {
+		// Get the relative directory path without the file name
+		dirPath := filepath.Dir(path)
+		relativeDirPath, err := filepath.Rel(directoryPath, dirPath)
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			if dirPath == directoryPath {
+				return nil
+			}
+
+			isEmpty, err := isDirEmpty(path)
+			if err != nil {
+				return err
+			}
+
+			if isEmpty {
+				fileMap[path] = relativeDirPath + "/"
+			}
+
 			return nil
 		}
 
-		// Calculate the relative path
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-
-		// Add the path and its relative path to the map
-		paths[path] = rel
+		// Use os.PathSeparator for the key and "/" for the value
+		fileMap[path] = relativeDirPath + "/"
 
 		return nil
 	})
 
+	// Check for errors during the walk
 	if err != nil {
 		return nil, err
 	}
 
-	return paths, nil
+	// loop through the map and print the key-value pairs
+	for key, value := range fileMap {
+		fmt.Println("Disk Path:", key, "Archive Path:", value)
+	}
+
+	return fileMap, nil
+}
+
+func isDirEmpty(dirPath string) (bool, error) {
+	dir, err := os.Open(dirPath)
+	if err != nil {
+		return false, err
+	}
+	defer dir.Close()
+
+	_, err = dir.Readdirnames(1)
+	if err == nil {
+		// Directory is not empty
+		return false, nil
+	}
+
+	// Directory is empty or an error occurred
+	return true, nil
 }

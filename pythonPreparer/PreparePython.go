@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	common "lukasolson.net/common"
-	"net/http"
 	"os"
 	"path/filepath"
 )
@@ -16,21 +15,20 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 	defer cleanDirectory(&settings)
 
 	// CREATE THE EXTRACTION DIRECTORY
-	if _, err := os.Stat(settings.PythonExtractDir); os.IsNotExist(err) {
-		if err := os.Mkdir(settings.PythonExtractDir, os.ModePerm); err != nil {
-			fmt.Println("Error creating extraction directory:", err)
-			return nil, nil, err
-		}
+	common.RemoveIfExists(settings.PythonExtractDir)
+	if err := os.Mkdir(settings.PythonExtractDir, os.ModePerm); err != nil {
+		fmt.Println("Error creating extraction directory:", err)
+		return nil, nil, err
 	}
 
 	// DOWNLOAD PYTHON ZIP FILE
-	if err := downloadFile(settings.PythonDownloadURL, settings.PythonDownloadZip); err != nil {
+	if err := common.DownloadFile(settings.PythonDownloadURL, settings.PythonDownloadZip); err != nil {
 		fmt.Println("Error downloading Python zip file:", err)
 		return nil, nil, err
 	}
 
 	// DOWNLOAD PIP FILE
-	if err := downloadFile(settings.PipDownloadURL, filepath.Join(settings.PythonExtractDir, common.GetPipScriptName())); err != nil {
+	if err := common.DownloadFile(settings.PipDownloadURL, filepath.Join(settings.PythonExtractDir, common.GetPipScriptName())); err != nil {
 		fmt.Println("Error downloading pip module:", err)
 		return nil, nil, err
 	}
@@ -40,9 +38,14 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 		return nil, nil, err
 	}
 
-	RemoveIfExists(settings.PythonDownloadZip)
+	common.RemoveIfExists(settings.PythonDownloadZip)
 
 	pythonStream, err := common.CompressDirToStream(settings.PythonExtractDir)
+
+	if err != nil {
+		fmt.Println("Error zipping Python directory:", err)
+		return nil, nil, err
+	}
 
 	requirementsFilePath := filepath.Join(settings.PayloadDir, settings.RequirementsFile)
 
@@ -50,22 +53,19 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 
 		if _, err := os.Stat(requirementsFilePath); !os.IsNotExist(err) {
 
-			if err := setupRequirements(settings.PythonExtractDir, requirementsFilePath); err != nil {
+			wheelsPath := filepath.Join(settings.PythonExtractDir, "wheels")
+
+			if err := buildRequirementWheels(settings.PythonExtractDir, requirementsFilePath, wheelsPath); err != nil {
 				return nil, nil, err
 			}
 
-			requirementsStream, _ := common.CompressDirToStream(filepath.Join(settings.PythonExtractDir, "wheels"))
+			wheelsStream, _ := common.CompressDirToStream(wheelsPath)
 
-			return pythonStream, requirementsStream, nil
+			return pythonStream, wheelsStream, nil
 
 		} else {
 			fmt.Println("Requirements file not found but is specified in configuration:", requirementsFilePath)
 		}
-	}
-
-	if err != nil {
-		fmt.Println("Error zipping Python directory:", err)
-		return nil, nil, err
 	}
 
 	return pythonStream, nil, nil
@@ -108,7 +108,7 @@ func extractInteriorPythonArchive(settings *common.PythonSetupSettings) error {
 		return err
 	}
 
-	RemoveIfExists(filepath.Join(settings.PythonExtractDir, settings.PythonInteriorZip))
+	common.RemoveIfExists(filepath.Join(settings.PythonExtractDir, settings.PythonInteriorZip))
 	return nil
 }
 
@@ -129,7 +129,7 @@ func createSiteCustomFile(settings *common.PythonSetupSettings) error {
 }
 
 func updatePTHFile(settings *common.PythonSetupSettings) error {
-	RemoveIfExists(filepath.Join(settings.PythonExtractDir, settings.PthFile))
+	common.RemoveIfExists(filepath.Join(settings.PythonExtractDir, settings.PthFile))
 
 	// write to ._pth file
 	pthFile, err := os.Create(filepath.Join(settings.PythonExtractDir, settings.PthFile))
@@ -147,10 +147,10 @@ func updatePTHFile(settings *common.PythonSetupSettings) error {
 	return err
 }
 
-func setupRequirements(extractDir, requirementsFile string) error {
+func buildRequirementWheels(extractDir, requirementsFile, wheelDir string) error {
 
 	// RUN THE PIP INSTALLER
-	if err := runCommand(filepath.Join(extractDir, "python.exe"), []string{filepath.Join(extractDir, common.GetPipScriptName())}); err != nil {
+	if err := common.RunCommand(filepath.Join(extractDir, "python.exe"), []string{filepath.Join(extractDir, common.GetPipScriptName())}); err != nil {
 		fmt.Println("Error running "+common.GetPipScriptName(), err)
 	}
 
@@ -159,85 +159,27 @@ func setupRequirements(extractDir, requirementsFile string) error {
 	// copy the requirements file to the python code directory using io.copy
 	installRequirementsPath := filepath.Join(extractDir, requirementsFile)
 
-	if err := copyFile(requirementsFile, installRequirementsPath); err != nil {
+	if err := common.CopyFile(requirementsFile, installRequirementsPath); err != nil {
 		fmt.Println("Error copying requirements file:", err)
 		return err
 	}
 
-	if err := runCommand(pythonPath, []string{"-m", "pip", "wheel", "-w", filepath.Join(extractDir, "wheels"), "-r", requirementsFile}); err != nil {
+	if err := common.RunCommand(pythonPath, []string{"-m", "pip", "wheel", "-w", wheelDir, "-r", requirementsFile}); err != nil {
 		fmt.Println("Error building wheels:", err)
 		return err
 	}
 
-	defer func(command string, args []string) {
-		err := runCommand(command, args)
-		if err != nil {
-			fmt.Println("Error running command:", err)
-		}
-	}(pythonPath, []string{"-m", "pip", "cache", "purge"}) // Clean up the pip cache after the program finishes
+	if err := common.RunCommand(pythonPath, []string{"-m", "pip", "cache", "purge"}); err != nil {
+		fmt.Println("Error building wheels:", err)
+		return err
+	}
+
 	return nil
-}
-
-func downloadFile(url, filePath string) error {
-	response, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-
-	file, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = io.Copy(file, response.Body)
-	return err
 }
 
 func cleanDirectory(settings *common.PythonSetupSettings) {
-	RemoveIfExists(settings.PythonExtractDir)
-	RemoveIfExists(settings.PythonDownloadZip)
+	common.RemoveIfExists(settings.PythonExtractDir)
+	common.RemoveIfExists(settings.PythonDownloadZip)
 
 	println("Directory cleaned")
-}
-
-func RemoveIfExists(path string) {
-	// Check if the path exists
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return
-	}
-
-	// Remove file or directory
-	err = os.RemoveAll(path)
-	if err != nil {
-		fmt.Println("Error deleting:", err)
-		return
-	}
-
-	fmt.Println("Successfully deleted:", path)
-}
-
-func copyFile(src, dst string) error {
-
-	from, err := os.Open(src)
-	if err != nil {
-		fmt.Println("Error opening requirements file:", err)
-		return err
-	}
-
-	to, err := os.Create(dst)
-	if err != nil {
-		fmt.Println("Error creating requirements file:", err)
-		return err
-	}
-
-	_, err = io.Copy(to, from)
-	if err != nil {
-		fmt.Println("Error copying requirements file:", err)
-		return err
-	}
-
-	return nil
 }

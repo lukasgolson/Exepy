@@ -7,7 +7,6 @@ import (
 	"io"
 	"lukasolson.net/common"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
 
@@ -18,7 +17,7 @@ func main() {
 		fmt.Println("Error opening attachments:", err)
 		return
 	}
-	defer attachments.Close()
+	//defer attachments.Close()
 
 	contents := attachments.List()
 
@@ -72,13 +71,9 @@ func main() {
 
 		pythonPath := filepath.Join(settings.PythonExtractDir, "python.exe")
 
-		if err := runCommand(pythonPath, []string{filepath.Join(settings.PythonExtractDir, common.GetPipScriptName())}); err != nil {
-			fmt.Println("Error running "+common.GetPipScriptName(), err)
-		}
-
 		// if requirements.txt exists, install the requirements
 		if _, err := os.Stat(settings.RequirementsFile); err == nil {
-			if err := runCommand(pythonPath, []string{"-m", "pip", "install", "--find-links=" + settings.PythonExtractDir + "/wheels/", "-r", settings.RequirementsFile}); err != nil {
+			if err := common.RunCommand(pythonPath, []string{"-m", "pip", "install", "--find-links=" + settings.PythonExtractDir + "/wheels/", "-r", settings.RequirementsFile}); err != nil {
 				fmt.Println("Error installing requirements:", err)
 				return
 			}
@@ -87,7 +82,7 @@ func main() {
 		// run the setup.py file if configured
 
 		if settings.SetupScript != "" {
-			if err := runCommand(pythonPath, []string{settings.SetupScript}); err != nil {
+			if err := common.RunCommand(pythonPath, []string{settings.SetupScript}); err != nil {
 				fmt.Println("Error running "+settings.SetupScript+":", err)
 				return
 			}
@@ -104,16 +99,9 @@ func main() {
 
 	appendedArguments := append([]string{settings.PayloadScript}, os.Args[1:]...)
 
-	if err := runCommand(filepath.Join(settings.PythonExtractDir, "python.exe"), appendedArguments); err != nil {
+	if err := common.RunCommand(filepath.Join(settings.PythonExtractDir, "python.exe"), appendedArguments); err != nil {
 		fmt.Println("Error running Python script:", err)
 		return
 	}
 
-}
-
-func runCommand(command string, args []string) error {
-	cmd := exec.Command(command, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
