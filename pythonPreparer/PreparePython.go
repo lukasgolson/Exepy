@@ -139,7 +139,7 @@ func updatePTHFile(settings *common.PythonSetupSettings) error {
 	}
 
 	// change python311 to pythonExtractDir
-	_, err = pthFile.WriteString(".\\" + settings.PythonExtractDir + "\n.\\Scripts\n.\n# importing site will run sitecustomize.py\nimport site")
+	_, err = pthFile.WriteString(".\\" + settings.PythonExtractDir + "\n.\\Scripts\n.\n.\\Lib\\site-packages\nimport site")
 	if err != nil {
 		fmt.Println("Error writing to ._pth file:", err)
 		return nil
