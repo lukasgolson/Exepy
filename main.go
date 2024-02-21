@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"github.com/maja42/ember/embedding"
 	"io"
 	"lukasolson.net/common"
@@ -10,9 +11,20 @@ import (
 	"os"
 )
 
+const settingsFileName = "settings.json"
+
 func main() {
 
-	pythonPreparer.PreparePython()
+	settings, err := common.LoadOrSaveDefault(settingsFileName)
+	if err != nil {
+		panic(err)
+	}
+
+	// check if payload directory exists
+	if _, err := os.Stat(settings.PayloadDir); os.IsNotExist(err) {
+		fmt.Errorf("Payload directory does not exist: %s", settings.PayloadDir)
+		return
+	}
 
 	file, err := os.Create("launch.exe")
 	if err != nil {
@@ -21,21 +33,20 @@ func main() {
 
 	defer file.Close()
 
-	pythonFile, err := os.Open("python.tar.GZ")
+	pythonFile, err := pythonPreparer.PreparePython(*settings)
 	if err != nil {
 		panic(err)
 	}
 
-	defer pythonFile.Close()
-
-	PayloadFile, err := os.Open("python.tar.GZ")
+	PayloadFile, err := common.CompressDirToStream(settings.PayloadDir)
 	if err != nil {
 		panic(err)
 	}
 
-	defer pythonFile.Close()
+	SettingsFile, err := os.Open(settingsFileName)
+	defer SettingsFile.Close()
 
-	embedMap := createEmbedMap(pythonFile, PayloadFile)
+	embedMap := createEmbedMap(pythonFile, PayloadFile, SettingsFile)
 
 	embedPayload(file, embedMap)
 
@@ -43,12 +54,13 @@ func main() {
 
 }
 
-func createEmbedMap(PythonRS, PayloadRS io.ReadSeeker) map[string]io.ReadSeeker {
+func createEmbedMap(PythonRS, PayloadRS io.ReadSeeker, SettingsFile io.ReadSeeker) map[string]io.ReadSeeker {
 
 	embedMap := make(map[string]io.ReadSeeker)
 
 	embedMap[common.GetPythonEmbedName()] = PythonRS
 	embedMap[common.GetPayloadEmbedName()] = PayloadRS
+	embedMap[common.GetConfigEmbedName()] = SettingsFile
 
 	return embedMap
 }

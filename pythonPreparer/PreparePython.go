@@ -10,59 +10,60 @@ import (
 )
 
 const (
-	outputZip    = "python.tar.GZ"
-	settingsFile = "settings.json"
+	outputZip = "python.tar.GZ"
 )
 
-func PreparePython() {
+func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, error) {
 
-	settings, err := common.LoadOrSaveDefault(settingsFile)
-	if err != nil {
-		return
-	}
+	cleanDirectory(&settings)
+	RemoveIfExists(outputZip)
 
-	cleanDirectory(settings)
-	removeIfExists(outputZip)
+	defer cleanDirectory(&settings)
 
 	// CREATE THE EXTRACTION DIRECTORY
 	if _, err := os.Stat(settings.PythonExtractDir); os.IsNotExist(err) {
 		if err := os.Mkdir(settings.PythonExtractDir, os.ModePerm); err != nil {
 			fmt.Println("Error creating extraction directory:", err)
-			return
+			return nil, err
 		}
 	}
 
 	// DOWNLOAD PYTHON ZIP FILE
 	if err := downloadFile(settings.PythonDownloadURL, settings.PythonDownloadZip); err != nil {
 		fmt.Println("Error downloading Python zip file:", err)
-		return
+		return nil, err
 	}
 
-	if err := createBasePythonInstallation(settings, settings.PythonDownloadZip); err != nil {
+	if err := createBasePythonInstallation(&settings, settings.PythonDownloadZip); err != nil {
 		fmt.Println("Error creating base Python installation:", err)
-		return
+		return nil, err
 	}
 
-	removeIfExists(settings.PythonDownloadZip)
+	RemoveIfExists(settings.PythonDownloadZip)
 
-	if settings.RequirementsFile != "" {
+	requirementsFilePath := filepath.Join(settings.PayloadDir, settings.RequirementsFile)
 
-		if _, err := os.Stat(settings.RequirementsFile); !os.IsNotExist(err) {
+	if requirementsFilePath != "" {
 
-			if err := setupRequirements(settings.PythonExtractDir, settings.RequirementsFile); err != nil {
-				return
+		if _, err := os.Stat(requirementsFilePath); !os.IsNotExist(err) {
+
+			if err := setupRequirements(settings.PythonExtractDir, requirementsFilePath); err != nil {
+				return nil, err
 			}
 
 		} else {
-			fmt.Println("Requirements file not found but is specified in configuration:", settings.RequirementsFile)
+			fmt.Println("Requirements file not found but is specified in configuration:", requirementsFilePath)
 		}
 	}
 
-	if err := common.CompressDir(settings.PythonExtractDir, outputZip); err != nil {
+	stream, err := common.CompressDirToStream(settings.PythonExtractDir)
+
+	if err != nil {
 		fmt.Println("Error zipping Python directory:", err)
-		return
+		return nil, err
 	}
 
+	return stream, nil
 }
 
 func createBasePythonInstallation(settings *common.PythonSetupSettings, pythonZip string) error {
@@ -108,7 +109,7 @@ func extractInteriorPythonArchive(settings *common.PythonSetupSettings) error {
 		return err
 	}
 
-	removeIfExists(filepath.Join(settings.PythonExtractDir, settings.PythonInteriorZip))
+	RemoveIfExists(filepath.Join(settings.PythonExtractDir, settings.PythonInteriorZip))
 	return nil
 }
 
@@ -129,7 +130,7 @@ func createSiteCustomFile(settings *common.PythonSetupSettings) error {
 }
 
 func updatePTHFile(settings *common.PythonSetupSettings) error {
-	removeIfExists(filepath.Join(settings.PythonExtractDir, settings.PthFile))
+	RemoveIfExists(filepath.Join(settings.PythonExtractDir, settings.PthFile))
 
 	// write to ._pth file
 	pthFile, err := os.Create(filepath.Join(settings.PythonExtractDir, settings.PthFile))
@@ -196,13 +197,13 @@ func downloadFile(url, filePath string) error {
 }
 
 func cleanDirectory(settings *common.PythonSetupSettings) {
-	removeIfExists(settings.PythonExtractDir)
-	removeIfExists(settings.PythonDownloadZip)
+	RemoveIfExists(settings.PythonExtractDir)
+	RemoveIfExists(settings.PythonDownloadZip)
 
 	println("Directory cleaned")
 }
 
-func removeIfExists(path string) {
+func RemoveIfExists(path string) {
 	// Check if the path exists
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {

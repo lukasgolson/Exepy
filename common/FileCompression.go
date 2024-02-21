@@ -2,6 +2,7 @@ package common
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/mholt/archiver/v4"
@@ -62,6 +63,42 @@ func CompressDir(directoryPath, zipfilename string) error {
 	}
 
 	return nil
+}
+
+func CompressDirToStream(directoryPath string) (io.ReadSeeker, error) {
+	// Get the list of files and directories in the specified folder
+	FromDiskOptions := &archiver.FromDiskOptions{
+		FollowSymlinks:  true,
+		ClearAttributes: true,
+	}
+
+	// map the files to the archive
+	pathMap, err := mapFilesAndDirectories(directoryPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a new zip archive
+	files, err := archiver.FilesFromDisk(FromDiskOptions, pathMap)
+	if err != nil {
+		return nil, err
+	}
+
+	// create a buffer to hold the compressed data
+	buf := new(bytes.Buffer)
+
+	format := getFormat()
+
+	// create the archive
+	err = format.Archive(context.Background(), buf, files)
+	if err != nil {
+		return nil, err
+	}
+
+	// convert the buffer to an io.ReadSeeker
+	readSeeker := bytes.NewReader(buf.Bytes())
+
+	return readSeeker, nil
 }
 
 func DecompressIOStream(IOReader io.Reader, directoryPath string) error {

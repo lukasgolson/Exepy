@@ -1,15 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/maja42/ember"
+	"io"
 	"lukasolson.net/common"
 	"os"
 	"os/exec"
 	"path/filepath"
 )
-
-const pythonExtractDir = "python"
 
 func main() {
 
@@ -47,6 +47,9 @@ func main() {
 		fmt.Println("Error reading config. Ensure it is embedded in the binary.")
 		return
 	}
+	config, err := io.ReadAll(ConfigReader)
+	var settings common.PythonSetupSettings
+	err = json.Unmarshal(config, &settings)
 
 	// check if the bootstrap has already been run
 	if _, err := os.Stat("bootstrapped"); os.IsNotExist(err) {
@@ -67,10 +70,21 @@ func main() {
 			return
 		}
 
-		pythonPath := filepath.Join(pythonExtractDir, "python.exe")
-		if err := runCommand(pythonPath, []string{"setup.py"}); err != nil {
-			fmt.Println("Error running setup.py:", err)
+		pythonPath := filepath.Join(settings.PythonExtractDir, "python.exe")
+
+		// install the requirements
+		if err := runCommand(pythonPath, []string{"-m", "pip", "install", "--find-links=" + settings.PythonExtractDir + "/wheels/", "-r", "requirements.txt"}); err != nil {
+			fmt.Println("Error installing requirements:", err)
 			return
+		}
+
+		// run the setup.py file if configured
+
+		if settings.SetupScript != "" {
+			if err := runCommand(pythonPath, []string{settings.SetupScript}); err != nil {
+				fmt.Println("Error running "+settings.SetupScript+":", err)
+				return
+			}
 		}
 
 		// save a text file to the current directory to indicate that the bootstrap has been run
@@ -80,9 +94,11 @@ func main() {
 		}
 	}
 
-	appendedArguments := append([]string{"videoToPointcloud.py"}, os.Args[1:]...)
+	// run the payload script
 
-	if err := runCommand(filepath.Join(pythonExtractDir, "python code.exe"), appendedArguments); err != nil {
+	appendedArguments := append([]string{settings.PayloadScript}, os.Args[1:]...)
+
+	if err := runCommand(filepath.Join(settings.PythonExtractDir, "python.exe"), appendedArguments); err != nil {
 		fmt.Println("Error running Python script:", err)
 		return
 	}

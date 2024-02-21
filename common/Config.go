@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 )
 
@@ -22,6 +23,9 @@ type PythonSetupSettings struct {
 	PthFile           string `json:"pthFile"`
 	PythonInteriorZip string `json:"pythonInteriorZip"`
 	RequirementsFile  string `json:"requirementsFile"`
+	PayloadDir        string `json:"payloadDir"`
+	SetupScript       string `json:"setupScript"`
+	PayloadScript     string `json:"payloadScript"`
 }
 
 func loadSettings(filename string) (*PythonSetupSettings, error) {
@@ -63,8 +67,16 @@ func LoadOrSaveDefault(filename string) (*PythonSetupSettings, error) {
 			PythonExtractDir:  pythonExtractDir,
 			PthFile:           pthFile,
 			PythonInteriorZip: pythonInteriorZip,
+			PayloadDir:        "payload",
 			RequirementsFile:  "requirements.txt",
+			PayloadScript:     "main.py",
 		}
+
+		if settings.PayloadScript == "" {
+
+			return nil, errors.New("PayloadScript is required in settings.json. Please add it and try again.")
+		}
+
 		err = saveSettings(filename, settings)
 		if err != nil {
 			return nil, err
