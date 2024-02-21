@@ -21,7 +21,7 @@ func getFormat() archiver.CompressedArchive {
 func CompressDirToStream(directoryPath string) (io.ReadSeeker, error) {
 	// Get the list of files and directories in the specified folder
 	FromDiskOptions := &archiver.FromDiskOptions{
-		FollowSymlinks:  true,
+		FollowSymlinks:  false,
 		ClearAttributes: true,
 	}
 
@@ -60,7 +60,9 @@ func DecompressIOStream(IOReader io.Reader, outputDir string) error {
 
 	handler := func(ctx context.Context, archivedFile archiver.File) error {
 
-		outPath := filepath.Join(outputDir, archivedFile.FileInfo.Name())
+		fmt.Println("Extracting:", archivedFile.NameInArchive)
+
+		outPath := filepath.Join(outputDir, archivedFile.NameInArchive)
 
 		if archivedFile.FileInfo.IsDir() {
 			err := os.MkdirAll(outPath, os.ModePerm)
@@ -121,6 +123,9 @@ func DecompressIOStream(IOReader io.Reader, outputDir string) error {
 }
 
 func mapFilesAndDirectories(directoryPath string) (map[string]string, error) {
+
+	pathSeperator := string(os.PathSeparator)
+
 	// Initialize a map to store file names and their corresponding paths
 	fileMap := make(map[string]string)
 
@@ -130,32 +135,33 @@ func mapFilesAndDirectories(directoryPath string) (map[string]string, error) {
 			return err
 		}
 
-		// Get the relative directory path without the file name
-		dirPath := filepath.Dir(path)
-		relativeDirPath, err := filepath.Rel(directoryPath, dirPath)
+		relativeDirPath, err := filepath.Rel(directoryPath, path)
 		if err != nil {
 			return err
 		}
 
 		if d.IsDir() {
-			if dirPath == directoryPath {
+
+			// Skip the root directory
+			if relativeDirPath == directoryPath {
 				return nil
 			}
 
+			// Check if the directory is empty
 			isEmpty, err := isDirEmpty(path)
 			if err != nil {
 				return err
 			}
 
+			// Use os.PathSeparator for the key and "/" for the value
 			if isEmpty {
-				fileMap[path] = relativeDirPath + "/"
+				fileMap[path] = filepath.ToSlash(relativeDirPath + pathSeperator)
 			}
 
 			return nil
 		}
 
-		// Use os.PathSeparator for the key and "/" for the value
-		fileMap[path] = relativeDirPath + "/"
+		fileMap[path] = filepath.ToSlash(relativeDirPath)
 
 		return nil
 	})
@@ -167,7 +173,7 @@ func mapFilesAndDirectories(directoryPath string) (map[string]string, error) {
 
 	// loop through the map and print the key-value pairs
 	for key, value := range fileMap {
-		fmt.Println("Disk Path:", key, "Archive Path:", value)
+		fmt.Println(key, " -> ", value)
 	}
 
 	return fileMap, nil

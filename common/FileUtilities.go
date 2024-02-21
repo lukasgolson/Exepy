@@ -54,7 +54,8 @@ func DoesFileExist(path string) bool {
 
 func RemoveIfExists(path string) {
 	if DoesFileExist(path) {
-		err := os.Remove(path)
+		err := os.RemoveAll(path)
+
 		if err != nil {
 			return
 		}

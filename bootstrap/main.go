@@ -17,7 +17,7 @@ func main() {
 		fmt.Println("Error opening attachments:", err)
 		return
 	}
-	//defer attachments.Close()
+	defer attachments.Close()
 
 	contents := attachments.List()
 
