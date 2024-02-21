@@ -107,26 +107,23 @@ func DecompressIOStream(IOReader io.Reader, directoryPath string) error {
 
 	handler := func(ctx context.Context, f archiver.File) error {
 
-		if f.FileInfo.IsDir() {
-			// create the directory
-			err := os.MkdirAll(filepath.Join(directoryPath, f.Name()), os.ModePerm)
+		// Create parent directories
+		err := os.MkdirAll(filepath.Join(directoryPath, filepath.Dir(f.Name())), os.ModePerm)
 
-			if err != nil {
-				return err
-			}
-		} else {
+		if err != nil {
+			fmt.Println("Error creating parent directories:", err)
+		}
 
-			// Create parent directories
-			err := os.MkdirAll(filepath.Join(directoryPath, filepath.Dir(f.Name())), os.ModePerm)
-
-			if err != nil {
-				return err
-			}
+		if !f.FileInfo.IsDir() {
 
 			// write bytes to file
 			outFile, err := os.Create(filepath.Join(directoryPath, f.Name()))
 
 			reader, _ := f.Open()
+
+			// gross but it works
+			fileContents, err := io.ReadAll(reader)
+
 			defer func(reader io.ReadCloser) {
 				err := reader.Close()
 				if err != nil {
@@ -134,9 +131,9 @@ func DecompressIOStream(IOReader io.Reader, directoryPath string) error {
 				}
 			}(reader)
 
-			_, err = io.Copy(outFile, reader)
+			_, err = io.Copy(outFile, bytes.NewReader(fileContents))
 			if err != nil {
-				return err
+				fmt.Println("Error copying file", err)
 			}
 		}
 

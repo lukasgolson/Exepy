@@ -32,7 +32,7 @@ func main() {
 
 	defer file.Close()
 
-	pythonFile, err := pythonPreparer.PreparePython(*settings)
+	pythonFile, _, err := pythonPreparer.PreparePython(*settings)
 	if err != nil {
 		panic(err)
 	}

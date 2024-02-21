@@ -9,11 +9,7 @@ import (
 	"path/filepath"
 )
 
-const (
-	getPipScriptName = "get-pip.py"
-)
-
-func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, error) {
+func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadSeeker, error) {
 
 	cleanDirectory(&settings)
 
@@ -23,28 +19,30 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, error) {
 	if _, err := os.Stat(settings.PythonExtractDir); os.IsNotExist(err) {
 		if err := os.Mkdir(settings.PythonExtractDir, os.ModePerm); err != nil {
 			fmt.Println("Error creating extraction directory:", err)
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	// DOWNLOAD PYTHON ZIP FILE
 	if err := downloadFile(settings.PythonDownloadURL, settings.PythonDownloadZip); err != nil {
 		fmt.Println("Error downloading Python zip file:", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	// DOWNLOAD PIP FILE
-	if err := downloadFile(settings.PipDownloadURL, filepath.Join(settings.PythonExtractDir, getPipScriptName)); err != nil {
+	if err := downloadFile(settings.PipDownloadURL, filepath.Join(settings.PythonExtractDir, common.GetPipScriptName())); err != nil {
 		fmt.Println("Error downloading pip module:", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := createBasePythonInstallation(&settings, settings.PythonDownloadZip); err != nil {
 		fmt.Println("Error creating base Python installation:", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	RemoveIfExists(settings.PythonDownloadZip)
+
+	pythonStream, err := common.CompressDirToStream(settings.PythonExtractDir)
 
 	requirementsFilePath := filepath.Join(settings.PayloadDir, settings.RequirementsFile)
 
@@ -53,22 +51,24 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, error) {
 		if _, err := os.Stat(requirementsFilePath); !os.IsNotExist(err) {
 
 			if err := setupRequirements(settings.PythonExtractDir, requirementsFilePath); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
+
+			requirementsStream, _ := common.CompressDirToStream(filepath.Join(settings.PythonExtractDir, "wheels"))
+
+			return pythonStream, requirementsStream, nil
 
 		} else {
 			fmt.Println("Requirements file not found but is specified in configuration:", requirementsFilePath)
 		}
 	}
 
-	stream, err := common.CompressDirToStream(settings.PythonExtractDir)
-
 	if err != nil {
 		fmt.Println("Error zipping Python directory:", err)
-		return nil, err
+		return nil, nil, err
 	}
 
-	return stream, nil
+	return pythonStream, nil, nil
 }
 
 func createBasePythonInstallation(settings *common.PythonSetupSettings, pythonZip string) error {
@@ -149,6 +149,11 @@ func updatePTHFile(settings *common.PythonSetupSettings) error {
 
 func setupRequirements(extractDir, requirementsFile string) error {
 
+	// RUN THE PIP INSTALLER
+	if err := runCommand(filepath.Join(extractDir, "python.exe"), []string{filepath.Join(extractDir, common.GetPipScriptName())}); err != nil {
+		fmt.Println("Error running "+common.GetPipScriptName(), err)
+	}
+
 	pythonPath := filepath.Join(extractDir, "python.exe")
 
 	// copy the requirements file to the python code directory using io.copy
@@ -157,11 +162,6 @@ func setupRequirements(extractDir, requirementsFile string) error {
 	if err := copyFile(requirementsFile, installRequirementsPath); err != nil {
 		fmt.Println("Error copying requirements file:", err)
 		return err
-	}
-
-	// RUN THE PIP INSTALLER
-	if err := runCommand(pythonPath, []string{filepath.Join(extractDir, getPipScriptName)}); err != nil {
-		fmt.Println("Error running get-pip.py:", err)
 	}
 
 	if err := runCommand(pythonPath, []string{"-m", "pip", "wheel", "-w", filepath.Join(extractDir, "wheels"), "-r", requirementsFile}); err != nil {
