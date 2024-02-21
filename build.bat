@@ -18,6 +18,6 @@ go build -o ..\bootstrap.exe main.go
 
 cd ..
 
-go build -o main.exe main.go
+go build -o bin/main.exe main.go
 
 del bootstrap.exe
