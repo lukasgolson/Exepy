@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	_ "embed"
-	"fmt"
 	"github.com/maja42/ember/embedding"
 	"io"
 	"lukasolson.net/common"
@@ -22,7 +21,7 @@ func main() {
 
 	// check if payload directory exists
 	if _, err := os.Stat(settings.PayloadDir); os.IsNotExist(err) {
-		fmt.Errorf("Payload directory does not exist: %s", settings.PayloadDir)
+		println("Payload directory does not exist: ", settings.PayloadDir)
 		return
 	}
 

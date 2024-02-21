@@ -57,7 +57,7 @@ func main() {
 		fmt.Println("Extracting Python and program files...")
 
 		// EXTRACT THE PYTHON ZIP FILE
-		err = common.DecompressIOStream(PythonReader, "python")
+		err = common.DecompressIOStream(PythonReader, settings.PythonExtractDir)
 		if err != nil {
 			fmt.Println("Error extracting Python zip file:", err)
 			return

@@ -10,13 +10,12 @@ import (
 )
 
 const (
-	outputZip = "python.tar.GZ"
+	getPipScriptName = "get-pip.py"
 )
 
 func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, error) {
 
 	cleanDirectory(&settings)
-	RemoveIfExists(outputZip)
 
 	defer cleanDirectory(&settings)
 
@@ -31,6 +30,12 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, error) {
 	// DOWNLOAD PYTHON ZIP FILE
 	if err := downloadFile(settings.PythonDownloadURL, settings.PythonDownloadZip); err != nil {
 		fmt.Println("Error downloading Python zip file:", err)
+		return nil, err
+	}
+
+	// DOWNLOAD PIP FILE
+	if err := downloadFile(settings.PipDownloadURL, filepath.Join(settings.PythonExtractDir, getPipScriptName)); err != nil {
+		fmt.Println("Error downloading pip module:", err)
 		return nil, err
 	}
 
@@ -92,12 +97,6 @@ func createBasePythonInstallation(settings *common.PythonSetupSettings, pythonZi
 		return err
 	}
 
-	// DOWNLOAD PIP FILE
-	if err := downloadFile(settings.PipDownloadURL, settings.PythonExtractDir+"/get-pip.py"); err != nil {
-		fmt.Println("Error downloading pip module:", err)
-		return err
-	}
-
 	return nil
 }
 
@@ -152,17 +151,17 @@ func setupRequirements(extractDir, requirementsFile string) error {
 
 	pythonPath := filepath.Join(extractDir, "python.exe")
 
-	if err := runCommand(pythonPath, []string{filepath.Join(extractDir, "get-pip.py")}); err != nil {
-		fmt.Println("Error running get-pip.py:", err)
-		return err
-	}
-
 	// copy the requirements file to the python code directory using io.copy
 	installRequirementsPath := filepath.Join(extractDir, requirementsFile)
 
 	if err := copyFile(requirementsFile, installRequirementsPath); err != nil {
 		fmt.Println("Error copying requirements file:", err)
 		return err
+	}
+
+	// RUN THE PIP INSTALLER
+	if err := runCommand(pythonPath, []string{filepath.Join(extractDir, getPipScriptName)}); err != nil {
+		fmt.Println("Error running get-pip.py:", err)
 	}
 
 	if err := runCommand(pythonPath, []string{"-m", "pip", "wheel", "-w", filepath.Join(extractDir, "wheels"), "-r", requirementsFile}); err != nil {
