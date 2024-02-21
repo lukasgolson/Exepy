@@ -48,6 +48,7 @@ func createEmbedMap(PythonRS, PayloadRS io.ReadSeeker) map[string]io.ReadSeeker 
 	embedMap := make(map[string]io.ReadSeeker)
 
 	embedMap[common.GetPythonEmbedName()] = PythonRS
+	embedMap[common.GetPayloadEmbedName()] = PayloadRS
 
 	return embedMap
 }
