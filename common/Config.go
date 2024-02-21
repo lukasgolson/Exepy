@@ -1,4 +1,4 @@
-package pythonPreparer
+package common
 
 import (
 	"encoding/json"
@@ -14,7 +14,7 @@ const (
 	pythonInteriorZip  = "python311.zip"
 )
 
-type pythonSetupSettings struct {
+type PythonSetupSettings struct {
 	PythonDownloadURL string `json:"pythonDownloadURL"`
 	PipDownloadURL    string `json:"pipDownloadURL"`
 	PythonDownloadZip string `json:"pythonDownloadFile"`
@@ -24,13 +24,13 @@ type pythonSetupSettings struct {
 	RequirementsFile  string `json:"requirementsFile"`
 }
 
-func loadSettings(filename string) (*pythonSetupSettings, error) {
+func loadSettings(filename string) (*PythonSetupSettings, error) {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	var settings pythonSetupSettings
+	var settings PythonSetupSettings
 	err = json.Unmarshal(data, &settings)
 	if err != nil {
 		return nil, err
@@ -39,7 +39,7 @@ func loadSettings(filename string) (*pythonSetupSettings, error) {
 	return &settings, nil
 }
 
-func saveSettings(filename string, settings *pythonSetupSettings) error {
+func saveSettings(filename string, settings *PythonSetupSettings) error {
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
@@ -53,10 +53,10 @@ func saveSettings(filename string, settings *pythonSetupSettings) error {
 	return nil
 }
 
-func loadOrSaveDefault(filename string) (*pythonSetupSettings, error) {
-	settings, err := loadSettings(settingsFile)
+func LoadOrSaveDefault(filename string) (*PythonSetupSettings, error) {
+	settings, err := loadSettings(filename)
 	if err != nil {
-		settings = &pythonSetupSettings{
+		settings = &PythonSetupSettings{
 			PythonDownloadURL: pythonDownloadURL,
 			PipDownloadURL:    pipDownloadURL,
 			PythonDownloadZip: pythonDownloadFile,
@@ -65,7 +65,7 @@ func loadOrSaveDefault(filename string) (*pythonSetupSettings, error) {
 			PythonInteriorZip: pythonInteriorZip,
 			RequirementsFile:  "requirements.txt",
 		}
-		err = saveSettings(settingsFile, settings)
+		err = saveSettings(filename, settings)
 		if err != nil {
 			return nil, err
 		}

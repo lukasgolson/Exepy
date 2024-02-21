@@ -16,7 +16,7 @@ const (
 
 func PreparePython() {
 
-	settings, err := loadOrSaveDefault(settingsFile)
+	settings, err := common.LoadOrSaveDefault(settingsFile)
 	if err != nil {
 		return
 	}
@@ -65,7 +65,7 @@ func PreparePython() {
 
 }
 
-func createBasePythonInstallation(settings *pythonSetupSettings, pythonZip string) error {
+func createBasePythonInstallation(settings *common.PythonSetupSettings, pythonZip string) error {
 	// EXTRACT THE Python ZIP FILE
 	if err := common.ExtractZip(pythonZip, settings.PythonExtractDir, 0); err != nil {
 		fmt.Println("Error extracting Python zip file:", err)
@@ -100,7 +100,7 @@ func createBasePythonInstallation(settings *pythonSetupSettings, pythonZip strin
 	return nil
 }
 
-func extractInteriorPythonArchive(settings *pythonSetupSettings) error {
+func extractInteriorPythonArchive(settings *common.PythonSetupSettings) error {
 	// EXTRACT THE EMBEDDED PYTHON INTERIOR ZIP FILE
 
 	if err := common.ExtractZip(filepath.Join(settings.PythonExtractDir, settings.PythonInteriorZip), settings.PythonExtractDir, 0); err != nil {
@@ -112,7 +112,7 @@ func extractInteriorPythonArchive(settings *pythonSetupSettings) error {
 	return nil
 }
 
-func createSiteCustomFile(settings *pythonSetupSettings) error {
+func createSiteCustomFile(settings *common.PythonSetupSettings) error {
 	sitecustomizeFile, err := os.Create(filepath.Join(settings.PythonExtractDir, "sitecustomize.py"))
 
 	if err != nil {
@@ -128,7 +128,7 @@ func createSiteCustomFile(settings *pythonSetupSettings) error {
 	return nil
 }
 
-func updatePTHFile(settings *pythonSetupSettings) error {
+func updatePTHFile(settings *common.PythonSetupSettings) error {
 	removeIfExists(filepath.Join(settings.PythonExtractDir, settings.PthFile))
 
 	// write to ._pth file
@@ -195,7 +195,7 @@ func downloadFile(url, filePath string) error {
 	return err
 }
 
-func cleanDirectory(settings *pythonSetupSettings) {
+func cleanDirectory(settings *common.PythonSetupSettings) {
 	removeIfExists(settings.PythonExtractDir)
 	removeIfExists(settings.PythonDownloadZip)
 

@@ -41,30 +41,43 @@ func main() {
 		return
 	}
 
-	// EXTRACT THE PYTHON ZIP FILE
-	err = common.DecompressDir(PythonReader, "python")
-	if err != nil {
-		fmt.Println("Error extracting Python zip file:", err)
+	ConfigReader := attachments.Reader(common.GetConfigEmbedName())
+
+	if ConfigReader == nil {
+		fmt.Println("Error reading config. Ensure it is embedded in the binary.")
 		return
 	}
 
-	// EXTRACT THE PIPELINE ZIP FILE
-	err = common.DecompressDir(PayloadReader, "")
-	if err != nil {
-		fmt.Println("Error extracting payload zip file:", err)
-		return
-	}
+	// check if the bootstrap has already been run
+	if _, err := os.Stat("bootstrapped"); os.IsNotExist(err) {
 
-	pythonPath := filepath.Join(pythonExtractDir, "python.exe")
-	if err := runCommand(pythonPath, []string{"setup.py"}); err != nil {
-		fmt.Println("Error running setup.py:", err)
-		return
-	}
+		fmt.Println("Extracting Python and program files...")
 
-	// save a text file to the current directory to indicate that the bootstrap has been run
-	if err := os.WriteFile("bootstrapped", []byte("Bootstrap has been run"), os.ModePerm); err != nil {
-		fmt.Println("Error saving bootstrap text file:", err)
-		return
+		// EXTRACT THE PYTHON ZIP FILE
+		err = common.DecompressIOStream(PythonReader, "python")
+		if err != nil {
+			fmt.Println("Error extracting Python zip file:", err)
+			return
+		}
+
+		// EXTRACT THE PIPELINE ZIP FILE
+		err = common.DecompressIOStream(PayloadReader, "")
+		if err != nil {
+			fmt.Println("Error extracting payload zip file:", err)
+			return
+		}
+
+		pythonPath := filepath.Join(pythonExtractDir, "python.exe")
+		if err := runCommand(pythonPath, []string{"setup.py"}); err != nil {
+			fmt.Println("Error running setup.py:", err)
+			return
+		}
+
+		// save a text file to the current directory to indicate that the bootstrap has been run
+		if err := os.WriteFile("bootstrapped", []byte("Bootstrap has been run"), os.ModePerm); err != nil {
+			fmt.Println("Error saving bootstrap text file:", err)
+			return
+		}
 	}
 
 	appendedArguments := append([]string{"videoToPointcloud.py"}, os.Args[1:]...)

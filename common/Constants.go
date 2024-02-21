@@ -10,3 +10,7 @@ func GetPythonEmbedName() string {
 func GetPayloadEmbedName() string {
 	return PayloadFileName
 }
+
+func GetConfigEmbedName() string {
+	return "settings.json"
+}

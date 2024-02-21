@@ -64,7 +64,7 @@ func CompressDir(directoryPath, zipfilename string) error {
 	return nil
 }
 
-func DecompressDir(IOReader io.Reader, directoryPath string) error {
+func DecompressIOStream(IOReader io.Reader, directoryPath string) error {
 
 	format := getFormat()
 
@@ -79,8 +79,8 @@ func DecompressDir(IOReader io.Reader, directoryPath string) error {
 			}
 		} else {
 
-			// create the file
-			err := os.MkdirAll(filepath.Join(directoryPath, f.Name()), os.ModePerm)
+			// Create parent directories
+			err := os.MkdirAll(filepath.Join(directoryPath, filepath.Dir(f.Name())), os.ModePerm)
 
 			if err != nil {
 				return err
