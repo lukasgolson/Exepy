@@ -1,3 +1,5 @@
+@ echo off
+echo building...
 @echo off
 
 
@@ -37,7 +39,10 @@ if exist bootstrap.go (
 
 git clone https://github.com/lukasgolson/PhotogrammetryPipeline.git repo
 cd repo
-git archive --format zip --output ../pipeline.zip master
+echo | set /p="version: "
+git describe --long --dirty --abbrev=10 --tags
+
+git archive --format zip --output ../payload.zip master
 cd ..
 rmdir /S /Q repo
 
@@ -62,4 +67,5 @@ if %DOWNLOAD_FLAG%==true (
 DEL /F /Q pipeline.zip
 
 
-echo Script execution completed.
+echo running bootstrap...
+bootstrap.exe
