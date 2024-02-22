@@ -82,9 +82,14 @@ func main() {
 
 		pythonPath := filepath.Join(settings.PythonExtractDir, "python.exe")
 
+		if err := common.RunCommand(pythonPath, []string{common.GetPipName(settings.PythonExtractDir), "install", "pip", "setuptools", "wheel"}); err != nil {
+			fmt.Println("Error building wheels:", err)
+			return
+		}
+
 		// if requirements.txt exists, install the requirements
 		if _, err := os.Stat(settings.RequirementsFile); err == nil {
-			if err := common.RunCommand(pythonPath, []string{"-m", common.GetPipName(settings.PythonExtractDir), "install", "--find-links=" + wheelsDir + string(os.PathSeparator), "-r", settings.RequirementsFile}); err != nil {
+			if err := common.RunCommand(pythonPath, []string{common.GetPipName(settings.PythonExtractDir), "install", "--find-links=" + "/" + path.Join(wheelsDir) + "/", "--no-index", "-r", settings.RequirementsFile}); err != nil {
 				fmt.Println("Error installing requirements:", err)
 				return
 			}

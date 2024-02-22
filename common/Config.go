@@ -73,7 +73,6 @@ func LoadOrSaveDefault(filename string) (*PythonSetupSettings, error) {
 		}
 
 		if settings.PayloadScript == "" {
-
 			return nil, errors.New("PayloadScript is required in settings.json. Please add it and try again.")
 		}
 

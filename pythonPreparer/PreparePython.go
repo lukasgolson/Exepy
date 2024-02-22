@@ -40,6 +40,10 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 
 	common.RemoveIfExists(settings.PythonDownloadZip)
 
+	originRequirements := filepath.Join(settings.PayloadDir, settings.RequirementsFile)
+	destRequirements := filepath.Join(settings.PythonExtractDir, settings.RequirementsFile)
+	common.CopyFile(originRequirements, destRequirements)
+
 	pythonStream, err := common.CompressDirToStream(settings.PythonExtractDir)
 
 	if err != nil {
@@ -50,19 +54,17 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 	wheelsPath := filepath.Join(settings.PythonExtractDir, "wheels")
 	os.Mkdir(wheelsPath, os.ModePerm)
 
-	requirementsFilePath := filepath.Join(settings.PayloadDir, settings.RequirementsFile)
+	if settings.RequirementsFile != "" {
 
-	if requirementsFilePath != "" {
-
-		if _, err := os.Stat(requirementsFilePath); !os.IsNotExist(err) {
-
-			if err := buildRequirementWheels(settings.PythonExtractDir, requirementsFilePath, wheelsPath); err != nil {
+		if common.DoesPathExist(originRequirements) {
+			fmt.Println("Requirements file found:", originRequirements)
+			if err := buildRequirementWheels(settings.PythonExtractDir, originRequirements, wheelsPath); err != nil {
 				return nil, nil, err
 			}
-
 		} else {
-			fmt.Println("Requirements file not found but is specified in configuration:", requirementsFilePath)
+			fmt.Println("Requirements file not found but is specified in configuration:", originRequirements)
 		}
+
 	}
 
 	wheelsStream, _ := common.CompressDirToStream(wheelsPath)
@@ -150,20 +152,12 @@ func buildRequirementWheels(extractDir, requirementsFile, wheelDir string) error
 
 	pythonPath := filepath.Join(extractDir, "python.exe")
 
-	// copy the requirements file to the python code directory using io.copy
-	installRequirementsPath := filepath.Join(extractDir, requirementsFile)
-
-	if err := common.CopyFile(requirementsFile, installRequirementsPath); err != nil {
-		fmt.Println("Error copying requirements file:", err)
-		return err
-	}
-
-	if err := common.RunCommand(pythonPath, []string{"-m", common.GetPipName(extractDir), "wheel", "-w", wheelDir, "-r", requirementsFile}); err != nil {
+	if err := common.RunCommand(pythonPath, []string{common.GetPipName(extractDir), "install", "pip", "setuptools", "wheel"}); err != nil {
 		fmt.Println("Error building wheels:", err)
 		return err
 	}
 
-	if err := common.RunCommand(pythonPath, []string{"-m", common.GetPipName(extractDir), "cache", "purge"}); err != nil {
+	if err := common.RunCommand(pythonPath, []string{common.GetPipName(extractDir), "wheel", "-w", wheelDir, "-r", requirementsFile}); err != nil {
 		fmt.Println("Error building wheels:", err)
 		return err
 	}
