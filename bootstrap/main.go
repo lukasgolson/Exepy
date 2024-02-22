@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"github.com/maja42/ember"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 )
 
 func main() {
@@ -89,9 +91,8 @@ func main() {
 
 		// if requirements.txt exists, install the requirements
 		if _, err := os.Stat(settings.RequirementsFile); err == nil {
-			if err := common.RunCommand(pythonPath, []string{common.GetPipName(settings.PythonExtractDir), "install", "--find-links=" + "/" + path.Join(wheelsDir) + "/", "--no-index", "-r", settings.RequirementsFile}); err != nil {
-				fmt.Println("Error installing requirements:", err)
-				return
+			if err := common.RunCommand(pythonPath, []string{common.GetPipName(settings.PythonExtractDir), "install", "--find-links", path.Join(wheelsDir) + "/", "--only-binary=:all:", "-r", settings.RequirementsFile}); err != nil {
+				fmt.Println("Error while installing requirements from disk... Continuing...", err)
 			}
 		}
 
@@ -121,5 +122,21 @@ func main() {
 		fmt.Println("Error running Python script:", err)
 		return
 	}
+
+	fmt.Println("Script completed. Press enter to exit.")
+
+	fmt.Print("\a")
+
+	go func() {
+		for {
+			fmt.Print("_")
+			time.Sleep(1000 * time.Millisecond)
+			fmt.Print("\r \r")
+			time.Sleep(1000 * time.Millisecond)
+		}
+	}()
+
+	reader := bufio.NewReader(os.Stdin)
+	_, _ = reader.ReadString('\n')
 
 }
