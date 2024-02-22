@@ -20,12 +20,12 @@ func createInstaller() {
 		return
 	}
 
-	pythonScriptPath := path.Join(settings.PayloadDir, settings.PayloadScript)
-	requirementsPath := path.Join(settings.PayloadDir, settings.RequirementsFile)
+	pythonScriptPath := path.Join(settings.ScriptDir, settings.MainScript)
+	requirementsPath := path.Join(settings.ScriptDir, settings.RequirementsFile)
 
 	// check if payload directory exists
-	if !common.DoesPathExist(settings.PayloadDir) {
-		println("Payload directory does not exist: ", settings.PayloadDir)
+	if !common.DoesPathExist(settings.ScriptDir) {
+		println("Scripts directory does not exist: ", settings.ScriptDir)
 		return
 	}
 
@@ -55,7 +55,7 @@ func createInstaller() {
 		panic(err)
 	}
 
-	PayloadFile, err := common.CompressDirToStream(settings.PayloadDir)
+	PayloadFile, err := common.CompressDirToStream(settings.ScriptDir)
 	if err != nil {
 		panic(err)
 	}

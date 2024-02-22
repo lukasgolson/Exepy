@@ -6,6 +6,8 @@ replace lukasolson.net/common => ../common
 
 require lukasolson.net/common v0.0.0-00010101000000-000000000000
 
+require github.com/maja42/ember v1.2.0
+
 require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/bodgit/plumbing v1.2.0 // indirect
@@ -18,7 +20,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
-	github.com/maja42/ember v1.2.0
 	github.com/mholt/archiver/v4 v4.0.0-alpha.8 // indirect
 	github.com/nwaples/rardecode/v2 v2.0.0-beta.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
@@ -27,3 +28,5 @@ require (
 	go4.org v0.0.0-20200411211856-f5505b9728dd // indirect
 	golang.org/x/text v0.3.8 // indirect
 )
+
+replace github.com/maja42/ember => github.com/lukasgolson/ember v0.0.0-20240222203012-16dfde8ef5de

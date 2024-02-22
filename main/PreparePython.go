@@ -40,7 +40,7 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 
 	common.RemoveIfExists(settings.PythonDownloadZip)
 
-	originRequirements := filepath.Join(settings.PayloadDir, settings.RequirementsFile)
+	originRequirements := filepath.Join(settings.ScriptDir, settings.RequirementsFile)
 	destRequirements := filepath.Join(settings.PythonExtractDir, settings.RequirementsFile)
 	common.CopyFile(originRequirements, destRequirements)
 

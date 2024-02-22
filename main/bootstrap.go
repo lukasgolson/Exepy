@@ -132,7 +132,7 @@ func bootstrap() {
 
 	fmt.Println("Running script...")
 
-	appendedArguments := append([]string{settings.PayloadScript}, os.Args[1:]...)
+	appendedArguments := append([]string{settings.MainScript}, os.Args[1:]...)
 
 	if err := common.RunCommand(filepath.Join(settings.PythonExtractDir, "python.exe"), appendedArguments); err != nil {
 		fmt.Println("Error running Python script:", err)
