@@ -1,3 +1,5 @@
+@ echo off
+echo building...
 @echo off
 
 
@@ -11,55 +13,11 @@ if %errorlevel% neq 0 (
     echo Go is installed.
 )
 
-echo Checking for git installation...
-where git > nul
+cd bootstrap
+go build -o ..\bootstrap.exe main.go
 
-if %errorlevel% neq 0 (
-    echo Git is not installed. Please install git and try again.
-    exit /b %errorlevel%
-) else (
-    echo Git is installed.
-)
-
-set DOWNLOAD_FLAG=false
-
-echo checking for bootstrap source file...
-if exist bootstrap.go (
-    echo bootstrap.go found.
-) else (
-    echo bootstrap.go not found. Downloading bootstrap.go...
-    curl -o bootstrap.go https://raw.githubusercontent.com/lukasgolson/Installer/master/bootstrap.go
-	set DOWNLOAD_FLAG=true
-)
-
-
-
-
-git clone https://github.com/lukasgolson/PhotogrammetryPipeline.git repo
-cd repo
-git archive --format zip --output ../pipeline.zip master
 cd ..
-rmdir /S /Q repo
 
-echo Executing go build bootstrap...
-go build bootstrap.go
+go build -o bin/main.exe main.go
 
-if %errorlevel% neq 0 (
-    echo Compilation failed.
-    exit /b %errorlevel%
-) else (
-    echo Compilation successful.
-)
-
-
-echo Cleaning up...
-
-if %DOWNLOAD_FLAG%==true (
-    DEL /F /Q bootstrap.go
-)
-
-
-DEL /F /Q pipeline.zip
-
-
-echo Script execution completed.
+del bootstrap.exe
