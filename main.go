@@ -90,7 +90,7 @@ func main() {
 }
 
 func SaveContentsToFile(filename, contents string) error {
-	hashFile, err := os.Create(filename + ".txt")
+	hashFile, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
