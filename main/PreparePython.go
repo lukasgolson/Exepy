@@ -1,4 +1,4 @@
-package pythonPreparer
+package main
 
 import (
 	"fmt"
