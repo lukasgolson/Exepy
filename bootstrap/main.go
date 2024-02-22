@@ -10,10 +10,27 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 func main() {
+
+	executablePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Error getting executable path:", err)
+		return
+	}
+	myHash, err := common.Md5SumFile(executablePath)
+
+	if err != nil {
+		fmt.Println("Error getting hash of executable:", err)
+		return
+	}
+
+	fmt.Println("Please validate my Md5 hash with the one supplied by the distributor of this file before continuing:", myHash)
+
+	PressButtonToContinue()
 
 	attachments, err := ember.Open()
 	if err != nil {
@@ -22,42 +39,50 @@ func main() {
 	}
 	defer attachments.Close()
 
-	PythonReader := attachments.Reader(common.GetPythonEmbedName())
-
-	if PythonReader == nil {
-		fmt.Println("Error reading Python. Ensure it is embedded in the binary.")
+	if ValidateHashes(attachments) {
+		fmt.Println("Hashes validated successfully.")
+	} else {
+		fmt.Println("Error validating hashes.")
 		return
 	}
 
-	PayloadReader := attachments.Reader(common.GetPayloadEmbedName())
+	// for each hash, compare the hash of the file to the hash in the map
+	// if any of the hashes do not match, return an error
 
-	if PayloadReader == nil {
-		fmt.Println("Error reading payload. Ensure it is embedded in the binary.")
+	// settings hash
+
+	settings, err := GetSettings(attachments)
+	if err != nil {
+		fmt.Println("Error reading settings:", err)
 		return
 	}
-
-	// EXTRACT THE WHEELS ZIP FILE
-	wheelsReader := attachments.Reader(common.GetWheelsEmbedName())
-	if wheelsReader == nil {
-		fmt.Println("Error reading wheels. Ensure it is embedded in the binary.")
-		return
-	}
-
-	ConfigReader := attachments.Reader(common.GetConfigEmbedName())
-
-	if ConfigReader == nil {
-		fmt.Println("Error reading config. Ensure it is embedded in the binary.")
-		return
-	}
-	config, err := io.ReadAll(ConfigReader)
-	var settings common.PythonSetupSettings
-	err = json.Unmarshal(config, &settings)
 
 	// check if the bootstrap has already been run
 	if _, err := os.Stat("bootstrapped"); os.IsNotExist(err) {
 		// if the bootstrap has not been run, extract the Python and program files
 
 		fmt.Println("Performing first time setup...")
+
+		PythonReader := attachments.Reader(common.GetPythonEmbedName())
+
+		if PythonReader == nil {
+			fmt.Println("Error reading Python. Ensure it is embedded in the binary.")
+			return
+		}
+
+		PayloadReader := attachments.Reader(common.GetPayloadEmbedName())
+
+		if PayloadReader == nil {
+			fmt.Println("Error reading payload. Ensure it is embedded in the binary.")
+			return
+		}
+
+		// EXTRACT THE WHEELS ZIP FILE
+		wheelsReader := attachments.Reader(common.GetWheelsEmbedName())
+		if wheelsReader == nil {
+			fmt.Println("Error reading wheels. Ensure it is embedded in the binary.")
+			return
+		}
 
 		// EXTRACT THE PYTHON ZIP FILE
 		err = common.DecompressIOStream(PythonReader, settings.PythonExtractDir)
@@ -112,6 +137,8 @@ func main() {
 		}
 	}
 
+	attachments.Close()
+
 	// run the payload script
 
 	fmt.Println("Running script...")
@@ -123,20 +150,122 @@ func main() {
 		return
 	}
 
-	fmt.Println("Script completed. Press enter to exit.")
+	fmt.Println("Script completed.")
+	PressButtonToContinue()
 
+}
+
+func PressButtonToContinue() {
+	fmt.Println("Press enter to exit.")
 	fmt.Print("\a")
 
 	go func() {
+		animation := []string{" ", " ", " ", "o", "O", "o", " ", " ", " "}
+		i := 0
 		for {
-			fmt.Print("_")
-			time.Sleep(1000 * time.Millisecond)
-			fmt.Print("\r \r")
-			time.Sleep(1000 * time.Millisecond)
+			fmt.Printf("\r%s", strings.Join(animation, ""))
+			time.Sleep(100 * time.Millisecond)
+			animation = append(animation[1:], animation[0])
+			i++
+			if i == len(animation) {
+				i = 0
+				animation = []string{" ", " ", " ", "o", "O", "o", " ", " ", " "}
+			}
 		}
 	}()
 
 	reader := bufio.NewReader(os.Stdin)
 	_, _ = reader.ReadString('\n')
+}
 
+func GetSettings(attachments *ember.Attachments) (common.PythonSetupSettings, error) {
+	ConfigReader := attachments.Reader(common.GetConfigEmbedName())
+
+	if ConfigReader == nil {
+		fmt.Println("Error reading config. Ensure it is embedded in the binary.")
+		return common.PythonSetupSettings{}, fmt.Errorf("error reading config. Ensure it is embedded in the binary")
+	}
+	config, err := io.ReadAll(ConfigReader)
+
+	var settings common.PythonSetupSettings
+	err = json.Unmarshal(config, &settings)
+	return settings, err
+}
+
+func GetHashmap(attachments *ember.Attachments) (map[string]string, error) {
+	HashReader := attachments.Reader(common.GetHashEmbedName())
+	if HashReader == nil {
+		fmt.Println("Error reading hash. Ensure it is embedded in the binary.")
+
+		// throw a new error to prevent further execution
+		return nil, fmt.Errorf("error reading hash. Ensure it is embedded in the binary")
+	}
+
+	hash, err := io.ReadAll(HashReader)
+
+	if err != nil {
+		fmt.Println("Error reading hash:", err)
+		return nil, err
+	}
+
+	var hashMap map[string]string
+
+	err = json.Unmarshal(hash, &hashMap)
+
+	if err != nil {
+		fmt.Println("Error unmarshalling hash:", err)
+		return nil, err
+	}
+
+	return hashMap, nil
+}
+
+func ValidateHash(seeker io.ReadSeeker, expectedHash string) (actualHash string, equal bool) {
+	actualHash, err := common.HashReadSeeker(seeker)
+	if err != nil {
+		fmt.Println("Error reading hash:", err)
+		return "", false
+	}
+
+	if actualHash != expectedHash {
+		return actualHash, false
+	}
+
+	return actualHash, true
+}
+
+func ValidateHashes(attachments *ember.Attachments) bool {
+
+	attachmentList := attachments.List()
+
+	hashMap, err := GetHashmap(attachments)
+	if err != nil {
+		return false
+	}
+
+	allHashesMatch := true
+
+	for _, attachment := range attachmentList {
+		if attachment == common.GetHashEmbedName() {
+			continue
+		}
+
+		attachmentReader := attachments.Reader(attachment)
+
+		if attachmentReader == nil {
+			fmt.Println("Error reading attachment:", attachment)
+			return false
+		}
+
+		actualHash, hashesMatch := ValidateHash(attachmentReader, hashMap[attachment])
+
+		if !hashesMatch {
+			fmt.Println("Error validating hash for:", attachment, " -> Expected:", hashMap[attachment], "Actual:", actualHash)
+			allHashesMatch = false
+		} else {
+			fmt.Println("Hash validated for:", attachment, " -> Expected:", hashMap[attachment], "Actual:", actualHash)
+		}
+	}
+
+	return allHashesMatch
 }

@@ -27,3 +27,7 @@ func GetPipName(extractDir string) string {
 func GetWheelsEmbedName() string {
 	return wheelsFilename
 }
+
+func GetHashEmbedName() string {
+	return "hashes"
+}

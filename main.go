@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
+	"fmt"
 	"github.com/maja42/ember/embedding"
 	"io"
 	"lukasolson.net/common"
@@ -67,20 +69,88 @@ func main() {
 
 	embedPayload(file, embedMap)
 
+	file.Close()
+
+	outputExeHash, err := common.Md5SumFile(file.Name())
+
+	if err != nil {
+		panic(err)
+	}
+
+	println("Output executable hash: ", outputExeHash, " saved to hash.txt")
+
+	// save the hash to a file
+
+	if err := SaveContentsToFile("hash.txt", outputExeHash); err != nil {
+		println("Error saving hash to file")
+	}
+
 	println("Embedded payload")
 
 }
 
+func SaveContentsToFile(filename, contents string) error {
+	hashFile, err := os.Create(filename + ".txt")
+	if err != nil {
+		return err
+	}
+
+	defer hashFile.Close()
+
+	_, err = hashFile.WriteString(contents)
+	return err
+}
+
 func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile io.ReadSeeker) map[string]io.ReadSeeker {
+
+	hashMap, hashBytes := HashFiles(PythonRS, PayloadRS, wheelsFile, SettingsFile)
+
+	json.NewEncoder(hashBytes).Encode(hashMap)
 
 	embedMap := make(map[string]io.ReadSeeker)
 
+	embedMap[common.GetHashEmbedName()] = bytes.NewReader(hashBytes.Bytes())
 	embedMap[common.GetPythonEmbedName()] = PythonRS
 	embedMap[common.GetPayloadEmbedName()] = PayloadRS
 	embedMap[common.GetWheelsEmbedName()] = wheelsFile
 	embedMap[common.GetConfigEmbedName()] = SettingsFile
 
 	return embedMap
+}
+
+func HashFiles(PythonRS io.ReadSeeker, PayloadRS io.ReadSeeker, wheelsFile io.ReadSeeker, SettingsFile io.ReadSeeker) (map[string]string, *bytes.Buffer) {
+	PythonHash, err := common.HashReadSeeker(PythonRS)
+	if err != nil {
+		panic(err)
+	}
+
+	PayloadHash, err := common.HashReadSeeker(PayloadRS)
+	if err != nil {
+		panic(err)
+	}
+
+	wheelsFileHash, err := common.HashReadSeeker(wheelsFile)
+	if err != nil {
+		panic(err)
+	}
+
+	SettingsFileHash, err := common.HashReadSeeker(SettingsFile)
+	if err != nil {
+		panic(err)
+	}
+
+	hashMap, hashBytes := make(map[string]string), new(bytes.Buffer)
+	hashMap[common.GetPythonEmbedName()] = PythonHash
+	hashMap[common.GetPayloadEmbedName()] = PayloadHash
+	hashMap[common.GetWheelsEmbedName()] = wheelsFileHash
+	hashMap[common.GetConfigEmbedName()] = SettingsFileHash
+
+	// print the hashes
+	for k, v := range hashMap {
+		fmt.Println("Hash for", k, ":", v)
+	}
+
+	return hashMap, hashBytes
 }
 
 //go:embed bootstrap.exe
