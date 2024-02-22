@@ -81,24 +81,12 @@ func main() {
 
 	// save the hash to a file
 
-	if err := SaveContentsToFile("hash.txt", outputExeHash); err != nil {
+	if err := common.SaveContentsToFile("hash.txt", outputExeHash); err != nil {
 		println("Error saving hash to file")
 	}
 
 	println("Embedded payload")
 
-}
-
-func SaveContentsToFile(filename, contents string) error {
-	hashFile, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-
-	defer hashFile.Close()
-
-	_, err = hashFile.WriteString(contents)
-	return err
 }
 
 func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile io.ReadSeeker) map[string]io.ReadSeeker {

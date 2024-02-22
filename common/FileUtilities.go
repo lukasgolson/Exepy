@@ -63,3 +63,15 @@ func RemoveIfExists(path string) {
 		println("Removed file: ", path)
 	}
 }
+
+func SaveContentsToFile(filename, contents string) error {
+	hashFile, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+
+	defer hashFile.Close()
+
+	_, err = hashFile.WriteString(contents)
+	return err
+}
