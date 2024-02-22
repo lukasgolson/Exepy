@@ -28,7 +28,13 @@ func main() {
 		return
 	}
 
-	fmt.Println("Please validate my Md5 hash with the one supplied by the distributor of this file before continuing:", myHash)
+	fmt.Println("Please validate my Md5 hash with the one supplied by my distributor before continuing")
+	fmt.Println("While the hash is not a guarantee of safety, it is a good indicator of file integrity.")
+	fmt.Println("You can validate my hash by running the following command in the command line:")
+	fmt.Println("certutil -hashfile", os.Args[0], "MD5")
+	fmt.Println("It should also match my self-reported hash:", myHash)
+	fmt.Println("")
+	fmt.Println("Note: If three hash values do not match, the file may have been tampered with.")
 
 	PressButtonToContinue()
 
