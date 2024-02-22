@@ -16,50 +16,9 @@ import (
 
 func main() {
 
-	executablePath, err := os.Executable()
-	if err != nil {
-		fmt.Println("Error getting executable path:", err)
+	exit := ValidateExecutableHash()
+	if exit {
 		return
-	}
-	myHash, err := common.Md5SumFile(executablePath)
-
-	if err != nil {
-		fmt.Println("Error getting hash of executable:", err)
-		return
-	}
-
-	if common.DoesPathExist("hash") {
-		// read the hash from the file and compare it to the hash of the executable
-		fileHash, err := os.ReadFile("hash")
-		if err != nil {
-			fmt.Println("Error reading hash file:", err)
-			return
-		}
-
-		if strings.TrimSpace(string(fileHash)) != myHash {
-			fmt.Println("Error: Executable hash does not match previously accepted hash. File may have been tampered with.")
-			return
-		} else {
-			fmt.Println("Hashes match. File integrity validated.")
-		}
-
-	} else {
-
-		fmt.Println("Please validate my Md5 hash with the one supplied by my distributor before continuing")
-		fmt.Println("While the hash is not a guarantee of safety, it is a good indicator of file integrity.")
-		fmt.Println("You can validate my hash by running the following command in the command line:")
-		fmt.Println("certutil -hashfile", os.Args[0], "MD5")
-		fmt.Println("It should also match my self-reported hash:", myHash)
-		fmt.Println("")
-		fmt.Println("Note: If three hash values do not match, the file may have been tampered with.")
-
-		PressButtonToContinue()
-
-		err = common.SaveContentsToFile("hash", myHash)
-		if err != nil {
-			fmt.Println("Error saving hash to file:", err)
-			return
-		}
 	}
 
 	attachments, err := ember.Open()
@@ -181,12 +140,75 @@ func main() {
 	}
 
 	fmt.Println("Script completed.")
-	PressButtonToContinue()
+	PressButtonToContinue("Press enter to exit")
 
 }
 
-func PressButtonToContinue() {
-	fmt.Println("Press enter to continue.")
+func ValidateExecutableHash() (exit bool) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Error getting executable path:", err)
+		return true
+	}
+	myHash, err := common.Md5SumFile(executablePath)
+
+	if err != nil {
+		fmt.Println("Error getting hash of executable:", err)
+		return true
+	}
+
+	if common.DoesPathExist("hash") {
+		// read the hash from the file and compare it to the hash of the executable
+		fileHash, err := os.ReadFile("hash")
+		if err != nil {
+			fmt.Println("Error reading hash file:", err)
+			return true
+		}
+
+		if strings.TrimSpace(string(fileHash)) != myHash {
+			fmt.Println("Error: Executable hash does not match previously accepted hash. File may have been tampered with.")
+
+			fmt.Println("Expected:", string(fileHash))
+			fmt.Println("Actual:", myHash)
+
+			fmt.Println("Please validate my Md5 hash with the one supplied by my distributor before continuing")
+
+			PressButtonToContinue("Press enter to accept the new hash and continue...")
+
+			err = common.SaveContentsToFile("hash", myHash)
+			if err != nil {
+				fmt.Println("Error saving hash to file:", err)
+				return true
+			}
+
+		} else {
+			fmt.Println("Hashes match. File integrity validated.")
+		}
+
+	} else {
+
+		fmt.Println("Please validate my Md5 hash with the one supplied by my distributor before continuing")
+		fmt.Println("While the hash is not a guarantee of safety, it is a good indicator of file integrity.")
+		fmt.Println("You can validate my hash by running the following command in the command line:")
+		fmt.Println("certutil -hashfile", os.Args[0], "MD5")
+		fmt.Println("It should also match my self-reported hash:", myHash)
+		fmt.Println("")
+		fmt.Println("Note: If three hash values do not match, the file may have been tampered with.")
+
+		PressButtonToContinue("Press enter to continue...")
+
+		err = common.SaveContentsToFile("hash", myHash)
+		if err != nil {
+			fmt.Println("Error saving hash to file:", err)
+			return true
+		}
+	}
+	return false
+}
+
+func PressButtonToContinue(continueMessage string) {
+	fmt.Println(continueMessage)
+	fmt.Println(".")
 	fmt.Print("\a")
 
 	stop := make(chan bool)
