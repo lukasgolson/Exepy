@@ -34,4 +34,4 @@ Exepy offers flexibility through its `settings.json` file. Here's a breakdown of
 
 **Community and Support**
 
-* **Project Repository** : [https://github.com/lukasgolson/Exepy](https://github.com/lukasgolson/Exepy)
+* **Project Repository** : [https://github.com/IRSS-UBC/Exepy](https://github.com/IRSS-UBC/Exepy)
