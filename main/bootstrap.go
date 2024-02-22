@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func main() {
+func bootstrap() {
 
 	exit := ValidateExecutableHash()
 	if exit {
@@ -52,14 +52,14 @@ func main() {
 
 		fmt.Println("Performing first time setup...")
 
-		PythonReader := attachments.Reader(common.GetPythonEmbedName())
+		PythonReader := attachments.Reader(common.PythonFilename)
 
 		if PythonReader == nil {
 			fmt.Println("Error reading Python. Ensure it is embedded in the binary.")
 			return
 		}
 
-		PayloadReader := attachments.Reader(common.GetPayloadEmbedName())
+		PayloadReader := attachments.Reader(common.PayloadFilename)
 
 		if PayloadReader == nil {
 			fmt.Println("Error reading payload. Ensure it is embedded in the binary.")
@@ -67,7 +67,7 @@ func main() {
 		}
 
 		// EXTRACT THE WHEELS ZIP FILE
-		wheelsReader := attachments.Reader(common.GetWheelsEmbedName())
+		wheelsReader := attachments.Reader(common.WheelsFilename)
 		if wheelsReader == nil {
 			fmt.Println("Error reading wheels. Ensure it is embedded in the binary.")
 			return
@@ -87,7 +87,7 @@ func main() {
 			return
 		}
 
-		wheelsDir := path.Join(settings.PythonExtractDir, common.GetWheelsEmbedName())
+		wheelsDir := path.Join(settings.PythonExtractDir, common.WheelsFilename)
 
 		// EXTRACT THE WHEELS ZIP FILE
 		err = common.DecompressIOStream(wheelsReader, wheelsDir)
@@ -132,7 +132,7 @@ func main() {
 
 	fmt.Println("Running script...")
 
-	appendedArguments := append([]string{settings.PayloadScript}, os.Args[1:]...)
+	appendedArguments := append([]string{settings.MainScript}, os.Args[1:]...)
 
 	if err := common.RunCommand(filepath.Join(settings.PythonExtractDir, "python.exe"), appendedArguments); err != nil {
 		fmt.Println("Error running Python script:", err)
@@ -255,7 +255,7 @@ func GetSettings(attachments *ember.Attachments) (common.PythonSetupSettings, er
 }
 
 func GetHashmap(attachments *ember.Attachments) (map[string]string, error) {
-	HashReader := attachments.Reader(common.GetHashEmbedName())
+	HashReader := attachments.Reader(common.HashesEmbedName)
 	if HashReader == nil {
 		fmt.Println("Error reading hash. Ensure it is embedded in the binary.")
 
@@ -308,7 +308,7 @@ func ValidateHashes(attachments *ember.Attachments) bool {
 	allHashesMatch := true
 
 	for _, attachment := range attachmentList {
-		if attachment == common.GetHashEmbedName() {
+		if attachment == common.HashesEmbedName {
 			continue
 		}
 

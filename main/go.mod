@@ -1,10 +1,12 @@
-module lukasolson.net/pythonPreparer
+module main
 
 go 1.21.0
 
 replace lukasolson.net/common => ../common
 
 require lukasolson.net/common v0.0.0-00010101000000-000000000000
+
+require github.com/maja42/ember v1.2.0
 
 require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
@@ -26,3 +28,5 @@ require (
 	go4.org v0.0.0-20200411211856-f5505b9728dd // indirect
 	golang.org/x/text v0.3.8 // indirect
 )
+
+replace github.com/maja42/ember => github.com/lukasgolson/ember v0.0.0-20240222203012-16dfde8ef5de
