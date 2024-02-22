@@ -43,7 +43,7 @@ func createInstaller() {
 		}
 	}
 
-	file, err := os.Create("launch.exe")
+	file, err := os.Create("bootstrap.exe")
 	if err != nil {
 		panic(err)
 	}

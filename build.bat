@@ -13,11 +13,5 @@ if %errorlevel% neq 0 (
     echo Go is installed.
 )
 
-cd bootstrap
-go build -o ..\bootstrap.exe main.go
-
-cd ..
-
-go build -o bin/main.exe main.go
-
-del bootstrap.exe
+cd main
+go build -o ..\creator.exe main.go
