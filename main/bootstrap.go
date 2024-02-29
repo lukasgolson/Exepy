@@ -81,7 +81,7 @@ func bootstrap() {
 		}
 
 		// EXTRACT THE PIPELINE ZIP FILE
-		err = common.DecompressIOStream(PayloadReader, "")
+		err = common.DecompressIOStream(PayloadReader, settings.ScriptDir)
 		if err != nil {
 			fmt.Println("Error extracting payload zip file:", err)
 			return
@@ -112,8 +112,10 @@ func bootstrap() {
 
 		// run the setup.py file if configured
 
+		setupPath := path.Join(settings.ScriptDir, settings.SetupScript)
+
 		if settings.SetupScript != "" {
-			if err := common.RunCommand(pythonPath, []string{settings.SetupScript}); err != nil {
+			if err := common.RunCommand(pythonPath, []string{setupPath}); err != nil {
 				fmt.Println("Error running "+settings.SetupScript+":", err)
 				return
 			}
@@ -132,7 +134,9 @@ func bootstrap() {
 
 	fmt.Println("Running script...")
 
-	appendedArguments := append([]string{settings.MainScript}, os.Args[1:]...)
+	mainScriptPath := path.Join(settings.ScriptDir, settings.MainScript)
+
+	appendedArguments := append([]string{mainScriptPath}, os.Args[1:]...)
 
 	if err := common.RunCommand(filepath.Join(settings.PythonExtractDir, "python.exe"), appendedArguments); err != nil {
 		fmt.Println("Error running Python script:", err)
@@ -157,7 +161,7 @@ func ValidateExecutableHash() (exit bool) {
 		return true
 	}
 
-	if common.DoesPathExist("hash") {
+	if common.DoesPathExist("hash.txt") {
 		// read the hash from the file and compare it to the hash of the executable
 		fileHash, err := os.ReadFile("hash")
 		if err != nil {
