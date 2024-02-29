@@ -163,7 +163,7 @@ func ValidateExecutableHash() (exit bool) {
 
 	if common.DoesPathExist("hash.txt") {
 		// read the hash from the file and compare it to the hash of the executable
-		fileHash, err := os.ReadFile("hash")
+		fileHash, err := os.ReadFile("hash.txt")
 		if err != nil {
 			fmt.Println("Error reading hash file:", err)
 			return true
