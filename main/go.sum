@@ -90,8 +90,8 @@ github.com/klauspost/pgzip v1.2.5/go.mod h1:Ch1tH69qFZu15pkjo5kYi6mth2Zzwzt50oCQ
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/maja42/ember v1.2.0 h1:OwU2QpZ1yo/PZthPV3INephaIGNeu4Pfl+fOnsYboJw=
-github.com/maja42/ember v1.2.0/go.mod h1:QjKIfgRMoUKR+L0N34Qki2nCnRKO0tzWQeigoQx8ZQ8=
+github.com/lukasgolson/ember v0.0.0-20240222203012-16dfde8ef5de h1:OBfEL1UMgZGbgnT6tNcLt/DtUb7ZkY8kaNLuya6OvGA=
+github.com/lukasgolson/ember v0.0.0-20240222203012-16dfde8ef5de/go.mod h1:QjKIfgRMoUKR+L0N34Qki2nCnRKO0tzWQeigoQx8ZQ8=
 github.com/mholt/archiver/v4 v4.0.0-alpha.8 h1:tRGQuDVPh66WCOelqe6LIGh0gwmfwxUrSSDunscGsRM=
 github.com/mholt/archiver/v4 v4.0.0-alpha.8/go.mod h1:5f7FUYGXdJWUjESffJaYR4R60VhnHxb2X3T1teMyv5A=
 github.com/nwaples/rardecode/v2 v2.0.0-beta.2 h1:e3mzJFJs4k83GXBEiTaQ5HgSc/kOK8q0rDaRO0MPaOk=

@@ -11,7 +11,7 @@ import (
 
 func getFormat() archiver.CompressedArchive {
 	format := archiver.CompressedArchive{
-		Compression: archiver.Xz{},
+		Compression: archiver.Bz2{},
 		Archival:    archiver.Tar{},
 	}
 	return format

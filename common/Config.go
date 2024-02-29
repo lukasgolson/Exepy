@@ -6,15 +6,6 @@ import (
 	"io/ioutil"
 )
 
-const (
-	pythonDownloadURL  = "https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip"
-	pipDownloadURL     = "https://bootstrap.pypa.io/pip/pip.pyz"
-	pythonDownloadFile = "python code-3.11.7-embed-amd64.zip"
-	pythonExtractDir   = "python-embed"
-	pthFile            = "python311._pth"
-	pythonInteriorZip  = "python311.zip"
-)
-
 type PythonSetupSettings struct {
 	PythonDownloadURL string `json:"pythonDownloadURL"`
 	PipDownloadURL    string `json:"pipDownloadURL"`
@@ -23,9 +14,9 @@ type PythonSetupSettings struct {
 	PthFile           string `json:"pthFile"`
 	PythonInteriorZip string `json:"pythonInteriorZip"`
 	RequirementsFile  string `json:"requirementsFile"`
-	PayloadDir        string `json:"payloadDir"`
+	ScriptDir         string `json:"scriptDir"`
 	SetupScript       string `json:"setupScript"`
-	PayloadScript     string `json:"payloadScript"`
+	MainScript        string `json:"mainScript"`
 }
 
 func loadSettings(filename string) (*PythonSetupSettings, error) {
@@ -61,24 +52,24 @@ func LoadOrSaveDefault(filename string) (*PythonSetupSettings, error) {
 	settings, err := loadSettings(filename)
 	if err != nil {
 		settings = &PythonSetupSettings{
-			PythonDownloadURL: pythonDownloadURL,
-			PipDownloadURL:    pipDownloadURL,
-			PythonDownloadZip: pythonDownloadFile,
-			PythonExtractDir:  pythonExtractDir,
-			PthFile:           pthFile,
-			PythonInteriorZip: pythonInteriorZip,
-			PayloadDir:        "payload",
-			RequirementsFile:  "requirements.txt",
-			PayloadScript:     "main.py",
-		}
-
-		if settings.PayloadScript == "" {
-			return nil, errors.New("PayloadScript is required in settings.json. Please add it and try again.")
+			PythonDownloadURL: "",
+			PipDownloadURL:    "",
+			PythonDownloadZip: "",
+			PythonExtractDir:  "",
+			PthFile:           "",
+			PythonInteriorZip: "",
+			ScriptDir:         "scripts",
+			RequirementsFile:  "",
+			MainScript:        "",
 		}
 
 		err = saveSettings(filename, settings)
 		if err != nil {
 			return nil, err
+		}
+
+		if settings.MainScript == "" {
+			return nil, errors.New("mainScript is required in settings.json. Please add it and try again")
 		}
 	}
 

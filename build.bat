@@ -13,11 +13,7 @@ if %errorlevel% neq 0 (
     echo Go is installed.
 )
 
-cd bootstrap
-go build -o ..\bootstrap.exe main.go
 
-cd ..
+go build -o ..\ExePy-Creator.exe main
 
-go build -o bin/main.exe main.go
-
-del bootstrap.exe
+echo Finished building!
