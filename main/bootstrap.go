@@ -110,10 +110,12 @@ func bootstrap() {
 			}
 		}
 
+		// run the setup.py file if configured
+
 		setupPath := path.Join(settings.ScriptDir, settings.SetupScript)
 
 		if settings.SetupScript != "" {
-			if err := common.RunCommandInDir(pythonPath, []string{setupPath}, settings.ScriptDir); err != nil {
+			if err := common.RunCommand(pythonPath, []string{setupPath}); err != nil {
 				fmt.Println("Error running "+settings.SetupScript+":", err)
 				return
 			}
@@ -124,7 +126,6 @@ func bootstrap() {
 			fmt.Println("Error saving bootstrap text file:", err)
 			return
 		}
-
 	}
 
 	attachments.Close()
@@ -137,7 +138,7 @@ func bootstrap() {
 
 	appendedArguments := append([]string{mainScriptPath}, os.Args[1:]...)
 
-	if err := common.RunCommandInDir(filepath.Join(settings.PythonExtractDir, "python.exe"), appendedArguments, settings.ScriptDir); err != nil {
+	if err := common.RunCommand(filepath.Join(settings.PythonExtractDir, "python.exe"), appendedArguments); err != nil {
 		fmt.Println("Error running Python script:", err)
 		return
 	}
@@ -162,7 +163,7 @@ func ValidateExecutableHash() (exit bool) {
 
 	if common.DoesPathExist("hash.txt") {
 		// read the hash from the file and compare it to the hash of the executable
-		fileHash, err := os.ReadFile("hash.txt")
+		fileHash, err := os.ReadFile("hash")
 		if err != nil {
 			fmt.Println("Error reading hash file:", err)
 			return true
