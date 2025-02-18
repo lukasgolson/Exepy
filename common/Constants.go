@@ -4,8 +4,9 @@ import "path/filepath"
 
 const PythonFilename = "python"
 const PayloadFilename = "payload"
+const IntegrityFilename = "integrity_hashes"
 const WheelsFilename = "wheels"
-const HashesEmbedName = "hashes"
+const HashesFilename = "hashes"
 
 const pipFilename = "pip.pyz"
 

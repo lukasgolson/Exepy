@@ -3,70 +3,86 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/maja42/ember/embedding"
 	"io"
 	"lukasolson.net/common"
 	"os"
 	"path"
+	"windowsPE"
 )
 
-const settingsFileName = "settings.json"
+const settingsFileName = "exepy.json"
 
-func createInstaller() {
+func createInstaller() error {
 
 	settings, err := common.LoadOrSaveDefault(settingsFileName)
 	if err != nil {
-		return
+		fmt.Println("Error loading or saving settings file:", err.Error())
+		return err
 	}
 
-	pythonScriptPath := path.Join(settings.ScriptDir, settings.MainScript)
-	requirementsPath := path.Join(settings.ScriptDir, settings.RequirementsFile)
+	pythonScriptPath := path.Join(*settings.ScriptDir, *settings.MainScript)
+	requirementsPath := path.Join(*settings.ScriptDir, *settings.RequirementsFile)
 
 	// check if payload directory exists
-	if !common.DoesPathExist(settings.ScriptDir) {
+	if !common.DoesPathExist(*settings.ScriptDir) {
 		println("Scripts directory does not exist: ", settings.ScriptDir)
-		return
+		return errors.New("Scripts directory does not exist")
 	}
 
 	// check if payload directory has the main file
 	if !common.DoesPathExist(pythonScriptPath) {
 		println("Main file does not exist: ", pythonScriptPath)
-		return
+		return errors.New("Main file does not exist")
 	}
 
 	// if requirements file is listed, check that it exists
-	if settings.RequirementsFile != "" {
+	if *settings.RequirementsFile != "" {
 		if !common.DoesPathExist(requirementsPath) {
 			println("Requirements file is listed in config but does not exist: ", requirementsPath)
-			return
+			return errors.New("Requirements file does not exist")
 		}
 	}
 
 	file, err := os.Create("bootstrap.exe")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	defer file.Close()
 
 	pythonFile, wheelsFile, err := PreparePython(*settings)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	PayloadFile, err := common.CompressDirToStream(settings.ScriptDir)
+	ignoredDirs := []string{"__pycache__", ".git", ".idea", ".vscode"}
+
+	PayloadHashes, err := common.ComputeDirectoryHashes(*settings.ScriptDir, ignoredDirs)
 	if err != nil {
-		panic(err)
+		return err
+	}
+
+	// convert the hashes to a json string
+	PayloadHashesJson, err := json.Marshal(PayloadHashes)
+	if err != nil {
+		return err
+	}
+
+	PayloadFile, err := common.DirToStream(*settings.ScriptDir, ignoredDirs)
+	if err != nil {
+		return err
 	}
 
 	SettingsFile, err := os.Open(settingsFileName)
 	defer SettingsFile.Close()
 
-	embedMap := createEmbedMap(pythonFile, PayloadFile, wheelsFile, SettingsFile)
+	embedMap := createEmbedMap(pythonFile, PayloadFile, wheelsFile, SettingsFile, bytes.NewReader(PayloadHashesJson))
 
 	if err := writePythonExecutable(file, embedMap); err != nil {
-		return
+		return err
 	}
 
 	file.Close()
@@ -74,7 +90,7 @@ func createInstaller() {
 	outputExeHash, err := common.Md5SumFile(file.Name())
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	println("Output executable hash: ", outputExeHash, " saved to hash.txt")
@@ -87,17 +103,20 @@ func createInstaller() {
 
 	println("Embedded payload")
 
+	return nil
+
 }
 
-func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile io.ReadSeeker) map[string]io.ReadSeeker {
+func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegrity io.ReadSeeker) map[string]io.ReadSeeker {
 
-	hashMap, hashBytes := HashFiles(PythonRS, PayloadRS, wheelsFile, SettingsFile)
+	hashMap, hashBytes := HashFiles(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegrity)
 
 	json.NewEncoder(hashBytes).Encode(hashMap)
 
 	embedMap := make(map[string]io.ReadSeeker)
 
-	embedMap[common.HashesEmbedName] = bytes.NewReader(hashBytes.Bytes())
+	embedMap[common.HashesFilename] = bytes.NewReader(hashBytes.Bytes())
+	embedMap[common.IntegrityFilename] = PayloadIntegrity
 	embedMap[common.PythonFilename] = PythonRS
 	embedMap[common.PayloadFilename] = PayloadRS
 	embedMap[common.WheelsFilename] = wheelsFile
@@ -106,13 +125,18 @@ func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile io.ReadSeeker)
 	return embedMap
 }
 
-func HashFiles(PythonRS io.ReadSeeker, PayloadRS io.ReadSeeker, wheelsFile io.ReadSeeker, SettingsFile io.ReadSeeker) (map[string]string, *bytes.Buffer) {
+func HashFiles(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadHashes io.ReadSeeker) (map[string]string, *bytes.Buffer) {
 	PythonHash, err := common.HashReadSeeker(PythonRS)
 	if err != nil {
 		panic(err)
 	}
 
 	PayloadHash, err := common.HashReadSeeker(PayloadRS)
+	if err != nil {
+		panic(err)
+	}
+
+	PayloadIntegrityHash, err := common.HashReadSeeker(PayloadHashes)
 	if err != nil {
 		panic(err)
 	}
@@ -130,6 +154,7 @@ func HashFiles(PythonRS io.ReadSeeker, PayloadRS io.ReadSeeker, wheelsFile io.Re
 	hashMap, hashBytes := make(map[string]string), new(bytes.Buffer)
 	hashMap[common.PythonFilename] = PythonHash
 	hashMap[common.PayloadFilename] = PayloadHash
+	hashMap[common.IntegrityFilename] = PayloadIntegrityHash
 	hashMap[common.WheelsFilename] = wheelsFileHash
 	hashMap[common.GetConfigEmbedName()] = SettingsFileHash
 
@@ -153,8 +178,21 @@ func writePythonExecutable(writer io.Writer, attachments map[string]io.ReadSeeke
 		return err
 	}
 
+	// Clean the executable file from any previous attachments
+	exeWithoutSignature, err := windowsPE.RemoveSignature(executableBytes)
+
+	if err != nil {
+		return err
+	}
+
+	exeWithoutEmbeddings, err := removeEmbedding(exeWithoutSignature)
+
+	if err != nil {
+		return err
+	}
+
 	// Create a new reader for the executable bytes
-	reader := bytes.NewReader(executableBytes)
+	reader := bytes.NewReader(exeWithoutEmbeddings)
 
 	// Embed the attachments into the executable
 	err = embedding.Embed(writer, reader, attachments, nil)
@@ -197,4 +235,19 @@ func loadSelf() ([]byte, error) {
 
 	// Return the file content as a byte slice and any error that might have occurred
 	return memSlice.Bytes(), err
+}
+
+func removeEmbedding(file []byte) ([]byte, error) {
+
+	out := new(bytes.Buffer)
+
+	reader := bytes.NewReader(file)
+
+	err := embedding.RemoveEmbedding(out, reader, nil)
+
+	if errors.Is(err, embedding.ErrNothingEmbedded) {
+		return file, nil
+	}
+
+	return out.Bytes(), err
 }
