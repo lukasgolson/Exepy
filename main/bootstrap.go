@@ -107,7 +107,10 @@ func bootstrap() error {
 		}
 
 		fmt.Println("Extracting files to copy to root...")
-		err = common.StreamToDir(rootFilesReader, ".")
+
+		currentWorkingDir, err := os.Getwd()
+
+		err = common.StreamToDir(rootFilesReader, currentWorkingDir)
 		if err != nil {
 			println("error extracting files to copy to root")
 			return err

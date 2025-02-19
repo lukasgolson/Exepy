@@ -32,7 +32,7 @@ func NewEncoder(rootPath string, chunkSize int) *Encoder {
 	return &Encoder{rootPath: rootPath, chunkSize: chunkSize}
 }
 
-func (e *Encoder) Encode(fileList []string) (io.Reader, error) {
+func (e *Encoder) Encode(fileList []string, flatPaths bool) (io.Reader, error) {
 	r, w := io.Pipe()
 	cw := &CountingWriter{w: w}
 	bufferedWriter := bufio.NewWriter(cw)
@@ -52,6 +52,10 @@ func (e *Encoder) Encode(fileList []string) (io.Reader, error) {
 			if err != nil {
 				w.CloseWithError(err)
 				return
+			}
+
+			if flatPaths {
+				relPath = filepath.Base(relPath)
 			}
 
 			var fh fileHeader

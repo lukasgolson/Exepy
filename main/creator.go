@@ -51,16 +51,6 @@ func createInstaller() error {
 		return err
 	}
 
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			println("Error closing file")
-		}
-
-		// move the file to bootstrap.exe
-		err = os.Rename(file.Name(), "installer.exe")
-	}(file)
-
 	pythonFile, wheelsFile, err := PreparePython(*settings)
 	if err != nil {
 		return err
@@ -74,7 +64,14 @@ func createInstaller() error {
 		}
 	}
 
-	CopyToRoot, err := common.FileMapToStream(settings.FilesToCopyToRoot)
+	// current working directory
+
+	currentWorkingDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	CopyToRoot, err := common.FilesToStream(currentWorkingDir, settings.FilesToCopyToRoot, true)
 
 	if err != nil {
 		return err
@@ -101,13 +98,13 @@ func createInstaller() error {
 	SettingsFile, err := os.Open(settingsFileName)
 	defer SettingsFile.Close()
 
-	embedMap := createEmbedMap(pythonFile, PayloadFile, wheelsFile, SettingsFile, CopyToRoot, bytes.NewReader(PayloadHashesJson))
+	PayloadHashesReader := bytes.NewReader(PayloadHashesJson)
+
+	embedMap := createEmbedMap(pythonFile, PayloadFile, wheelsFile, SettingsFile, PayloadHashesReader, CopyToRoot)
 
 	if err := writeExecutable(file, embedMap); err != nil {
 		return err
 	}
-
-	file.Close()
 
 	outputExeHash, err := common.Md5SumFile(file.Name())
 
@@ -118,6 +115,14 @@ func createInstaller() error {
 	println("Output executable hash: ", outputExeHash, " saved to hash.txt")
 
 	// save the hash to a file
+
+	err = file.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	// move the file to bootstrap.exe
+	err = os.Rename(file.Name(), "installer.exe")
 
 	if err := common.SaveContentsToFile("hash.txt", outputExeHash); err != nil {
 		println("Error saving hash to file")
@@ -131,13 +136,8 @@ func createInstaller() error {
 
 func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegrity, CopyToRootFile io.ReadSeeker) map[string]io.ReadSeeker {
 
-	hashMap, hashBytes := CalculateHashMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegrity, CopyToRootFile)
-
-	json.NewEncoder(hashBytes).Encode(hashMap)
-
 	embedMap := make(map[string]io.ReadSeeker)
 
-	embedMap[common.HashmapName] = bytes.NewReader(hashBytes.Bytes())
 	embedMap[common.PythonFilename] = PythonRS
 	embedMap[common.ScriptsFilename] = PayloadRS
 	embedMap[common.ScriptIntegrityFilename] = PayloadIntegrity
@@ -145,54 +145,32 @@ func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegr
 	embedMap[common.CopyToRootFilename] = CopyToRootFile
 	embedMap[common.GetConfigEmbedName()] = SettingsFile
 
+	hashMap := calculateHashesFromMap(embedMap)
+	var hashBytes = new(bytes.Buffer)
+	json.NewEncoder(hashBytes).Encode(hashMap)
+
+	embedMap[common.HashmapName] = bytes.NewReader(hashBytes.Bytes())
+
 	return embedMap
 }
 
-func CalculateHashMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadHashes, CopyToRootFile io.ReadSeeker) (map[string]string, *bytes.Buffer) {
-	PythonHash, err := common.HashReadSeeker(PythonRS)
-	if err != nil {
-		panic(err)
+func calculateHashesFromMap(embedMap map[string]io.ReadSeeker) map[string]string {
+
+	hashMap := make(map[string]string)
+
+	for k, v := range embedMap {
+		hash, err := common.HashReadSeeker(v)
+		if err != nil {
+			panic(err)
+		}
+		hashMap[k] = hash
 	}
 
-	PayloadHash, err := common.HashReadSeeker(PayloadRS)
-	if err != nil {
-		panic(err)
-	}
-
-	PayloadIntegrityHash, err := common.HashReadSeeker(PayloadHashes)
-	if err != nil {
-		panic(err)
-	}
-
-	wheelsFileHash, err := common.HashReadSeeker(wheelsFile)
-	if err != nil {
-		panic(err)
-	}
-
-	SettingsFileHash, err := common.HashReadSeeker(SettingsFile)
-	if err != nil {
-		panic(err)
-	}
-
-	CopyToRootFileHash, err := common.HashReadSeeker(CopyToRootFile)
-	if err != nil {
-		panic(err)
-	}
-
-	hashMap, hashBytes := make(map[string]string), new(bytes.Buffer)
-	hashMap[common.PythonFilename] = PythonHash
-	hashMap[common.ScriptsFilename] = PayloadHash
-	hashMap[common.ScriptIntegrityFilename] = PayloadIntegrityHash
-	hashMap[common.WheelsFolderName] = wheelsFileHash
-	hashMap[common.CopyToRootFilename] = CopyToRootFileHash
-	hashMap[common.GetConfigEmbedName()] = SettingsFileHash
-
-	// print the hashes
 	for k, v := range hashMap {
 		fmt.Println("Hash for", k, ":", v)
 	}
 
-	return hashMap, hashBytes
+	return hashMap
 }
 
 // writeExecutable is a function that embeds attachments into a Python executable.

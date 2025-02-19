@@ -18,11 +18,16 @@ type Decoder struct {
 }
 
 // NewDecoder creates a new Decoder with an option for strict mode.
-func NewDecoder(destPath string, strictMode bool, chunkSize int) *Decoder {
+func NewDecoder(destPath string, strictMode bool, chunkSize int) (*Decoder, error) {
 	if chunkSize <= 0 {
 		chunkSize = DefaultChunkSize
 	}
-	return &Decoder{destPath: destPath, strictMode: strictMode, chunkSize: chunkSize}
+
+	if destPath == "" || destPath == "." {
+		return nil, errors.New("invalid destination path")
+	}
+
+	return &Decoder{destPath: destPath, strictMode: strictMode, chunkSize: chunkSize}, nil
 }
 
 // recover scans the stream byte-by-byte until the magic number is found.
@@ -88,16 +93,16 @@ func (d *Decoder) Decode(r io.Reader) error {
 		}
 
 		if err != nil {
-			return fmt.Errorf("Decode: error reading header: %v", err)
+			return fmt.Errorf("error reading header: %v", err)
 		}
 
 		fullPath, err := sanitizePath(d.destPath, fh.FilePath)
 		if err != nil {
-			return fmt.Errorf("Decode: invalid file path: %v", err)
+			return err
 		}
 		dir := filepath.Dir(fullPath)
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("Decode: error creating directory %s: %v", dir, err)
+			return fmt.Errorf("error creating directory %s: %v", dir, err)
 		}
 
 		switch fh.FileType {

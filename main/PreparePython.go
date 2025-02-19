@@ -53,7 +53,7 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 
 	if *settings.InstallerRequirements != "" {
 		if common.DoesPathExist(*settings.InstallerRequirements) {
-			fmt.Println("Installer requirements file found:", settings.InstallerRequirements)
+			fmt.Println("Installer requirements file found:", *settings.InstallerRequirements)
 			if err := buildRequirementWheels(*settings.PythonExtractDir, *settings.InstallerRequirements, wheelsPath); err != nil {
 				return nil, nil, err
 			}
