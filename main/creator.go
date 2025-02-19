@@ -46,19 +46,41 @@ func createInstaller() error {
 		}
 	}
 
-	file, err := os.Create("bootstrap.exe")
+	file, err := os.CreateTemp("", "installer*.exe")
 	if err != nil {
 		return err
 	}
 
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			println("Error closing file")
+		}
+
+		// move the file to bootstrap.exe
+		err = os.Rename(file.Name(), "installer.exe")
+	}(file)
 
 	pythonFile, wheelsFile, err := PreparePython(*settings)
 	if err != nil {
 		return err
 	}
 
-	ignoredDirs := []string{"__pycache__", ".git", ".idea", ".vscode"}
+	// check to ensure each copy to root file exists
+	for _, toCopy := range settings.FilesToCopyToRoot {
+		if !common.DoesPathExist(toCopy) {
+			println("File to copy to root does not exist: ", toCopy)
+			return errors.New("file to copy to root does not exist")
+		}
+	}
+
+	CopyToRoot, err := common.FileMapToStream(settings.FilesToCopyToRoot)
+
+	if err != nil {
+		return err
+	}
+
+	ignoredDirs := settings.IgnoredPathParts
 
 	PayloadHashes, err := common.ComputeDirectoryHashes(*settings.ScriptDir, ignoredDirs)
 	if err != nil {
@@ -79,9 +101,9 @@ func createInstaller() error {
 	SettingsFile, err := os.Open(settingsFileName)
 	defer SettingsFile.Close()
 
-	embedMap := createEmbedMap(pythonFile, PayloadFile, wheelsFile, SettingsFile, bytes.NewReader(PayloadHashesJson))
+	embedMap := createEmbedMap(pythonFile, PayloadFile, wheelsFile, SettingsFile, CopyToRoot, bytes.NewReader(PayloadHashesJson))
 
-	if err := writePythonExecutable(file, embedMap); err != nil {
+	if err := writeExecutable(file, embedMap); err != nil {
 		return err
 	}
 
@@ -107,25 +129,26 @@ func createInstaller() error {
 
 }
 
-func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegrity io.ReadSeeker) map[string]io.ReadSeeker {
+func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegrity, CopyToRootFile io.ReadSeeker) map[string]io.ReadSeeker {
 
-	hashMap, hashBytes := HashFiles(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegrity)
+	hashMap, hashBytes := CalculateHashMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegrity, CopyToRootFile)
 
 	json.NewEncoder(hashBytes).Encode(hashMap)
 
 	embedMap := make(map[string]io.ReadSeeker)
 
-	embedMap[common.HashesFilename] = bytes.NewReader(hashBytes.Bytes())
-	embedMap[common.IntegrityFilename] = PayloadIntegrity
+	embedMap[common.HashmapName] = bytes.NewReader(hashBytes.Bytes())
 	embedMap[common.PythonFilename] = PythonRS
-	embedMap[common.PayloadFilename] = PayloadRS
+	embedMap[common.ScriptsFilename] = PayloadRS
+	embedMap[common.ScriptIntegrityFilename] = PayloadIntegrity
 	embedMap[common.WheelsFolderName] = wheelsFile
+	embedMap[common.CopyToRootFilename] = CopyToRootFile
 	embedMap[common.GetConfigEmbedName()] = SettingsFile
 
 	return embedMap
 }
 
-func HashFiles(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadHashes io.ReadSeeker) (map[string]string, *bytes.Buffer) {
+func CalculateHashMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadHashes, CopyToRootFile io.ReadSeeker) (map[string]string, *bytes.Buffer) {
 	PythonHash, err := common.HashReadSeeker(PythonRS)
 	if err != nil {
 		panic(err)
@@ -151,11 +174,17 @@ func HashFiles(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadHashes io.R
 		panic(err)
 	}
 
+	CopyToRootFileHash, err := common.HashReadSeeker(CopyToRootFile)
+	if err != nil {
+		panic(err)
+	}
+
 	hashMap, hashBytes := make(map[string]string), new(bytes.Buffer)
 	hashMap[common.PythonFilename] = PythonHash
-	hashMap[common.PayloadFilename] = PayloadHash
-	hashMap[common.IntegrityFilename] = PayloadIntegrityHash
+	hashMap[common.ScriptsFilename] = PayloadHash
+	hashMap[common.ScriptIntegrityFilename] = PayloadIntegrityHash
 	hashMap[common.WheelsFolderName] = wheelsFileHash
+	hashMap[common.CopyToRootFilename] = CopyToRootFileHash
 	hashMap[common.GetConfigEmbedName()] = SettingsFileHash
 
 	// print the hashes
@@ -166,11 +195,11 @@ func HashFiles(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadHashes io.R
 	return hashMap, hashBytes
 }
 
-// writePythonExecutable is a function that embeds attachments into a Python executable.
+// writeExecutable is a function that embeds attachments into a Python executable.
 // It takes two parameters:
 // - writer: an io.Writer where the resulting executable will be written.
 // - attachments: a map where the key is the name of the attachment and the value is an io.ReadSeeker that reads the attachment's content.
-func writePythonExecutable(writer io.Writer, attachments map[string]io.ReadSeeker) error {
+func writeExecutable(writer io.Writer, attachments map[string]io.ReadSeeker) error {
 	// Load the executable file of the current running program
 	executableBytes, err := loadSelf()
 	// If an error occurred while loading the executable, return
@@ -178,7 +207,7 @@ func writePythonExecutable(writer io.Writer, attachments map[string]io.ReadSeeke
 		return err
 	}
 
-	// Clean the executable file from any previous attachments
+	// Clean the executable file from any previous signature or attachments
 	exeWithoutSignature, err := windowsPE.RemoveSignature(executableBytes)
 
 	if err != nil {
@@ -216,11 +245,9 @@ func loadSelf() ([]byte, error) {
 
 	// Open the executable file
 	file, err := os.Open(selfPath)
-	// If an error occurred while opening the file, return the error
 	if err != nil {
 		return nil, err
 	}
-	// Ensure the file will be closed at the end of the function
 	defer file.Close()
 
 	// Create a new buffer to hold the file content
@@ -228,7 +255,6 @@ func loadSelf() ([]byte, error) {
 
 	// Copy the file content into the buffer
 	_, err = io.Copy(memSlice, file)
-	// If an error occurred while copying the file content, return the error
 	if err != nil {
 		return nil, err
 	}

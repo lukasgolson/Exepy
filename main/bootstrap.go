@@ -13,6 +13,8 @@ import (
 	"strings"
 )
 
+const bootstrappedFileName = "bootstrapped"
+
 //go:embed run.bat
 var runScript string
 
@@ -29,7 +31,7 @@ func bootstrap() error {
 	}
 	defer attachments.Close()
 
-	if ValidateHashes(attachments) {
+	if ValidateAttachmentHashes(attachments) {
 		fmt.Println("Self-integrity validated successfully.")
 	} else {
 		return fmt.Errorf("error validating hashes")
@@ -47,7 +49,7 @@ func bootstrap() error {
 
 	integrityChecked := false
 
-	if _, err := os.Stat("bootstrapped"); os.IsNotExist(err) {
+	if _, err := os.Stat(bootstrappedFileName); os.IsNotExist(err) {
 		// if the bootstrap has not been run, extract the Python and program files
 
 		fmt.Println("Performing first time setup...")
@@ -60,7 +62,7 @@ func bootstrap() error {
 			return fmt.Errorf("error reading Python. Ensure it is embedded in the binary")
 		}
 
-		PayloadReader := attachments.Reader(common.PayloadFilename)
+		PayloadReader := attachments.Reader(common.ScriptsFilename)
 
 		if PayloadReader == nil {
 			return fmt.Errorf("error reading payload. Ensure it is embedded in the binary")
@@ -69,6 +71,11 @@ func bootstrap() error {
 		wheelsReader := attachments.Reader(common.WheelsFolderName)
 		if wheelsReader == nil {
 			return fmt.Errorf("error reading wheels. Ensure it is embedded in the binary")
+		}
+
+		rootFilesReader := attachments.Reader(common.CopyToRootFilename)
+		if rootFilesReader == nil {
+			return fmt.Errorf("error reading files to copy to root. Ensure it is embedded in the binary")
 		}
 
 		// extract the files to the disk
@@ -99,10 +106,17 @@ func bootstrap() error {
 			return err
 		}
 
+		fmt.Println("Extracting files to copy to root...")
+		err = common.StreamToDir(rootFilesReader, ".")
+		if err != nil {
+			println("error extracting files to copy to root")
+			return err
+		}
+
 		fmt.Println("Extracted files successfully.")
 
 		// Validate the integrity of the extracted files
-		EmbeddedIntegrityHashes := attachments.Reader(common.IntegrityFilename)
+		EmbeddedIntegrityHashes := attachments.Reader(common.ScriptIntegrityFilename)
 		if EmbeddedIntegrityHashes == nil {
 			panic("Error reading integrity hashes. Ensure they are embedded in the binary.")
 		}
@@ -172,7 +186,7 @@ func bootstrap() error {
 
 		myHash, err := calculateSelfHash()
 
-		err = common.SaveContentsToFile("bootstrapped", myHash)
+		err = common.SaveContentsToFile(bootstrappedFileName, myHash)
 		if err != nil {
 			fmt.Println("Error saving hash to file:", err)
 		}
@@ -193,7 +207,7 @@ func bootstrap() error {
 
 	if integrityChecked != true {
 		// Validate the integrity of the extracted files
-		EmbeddedIntegrityHashes := attachments.Reader(common.IntegrityFilename)
+		EmbeddedIntegrityHashes := attachments.Reader(common.ScriptIntegrityFilename)
 		if EmbeddedIntegrityHashes == nil {
 			panic("Error reading integrity hashes. Ensure they are embedded in the binary.")
 		}
@@ -207,7 +221,7 @@ func bootstrap() error {
 
 		if isIntegral != true {
 			fmt.Println("Please rerun the installer to reinstall the environment.")
-			os.Remove("bootstrapped")
+			os.Remove(bootstrappedFileName)
 
 			// quit the program with an error code
 			return fmt.Errorf("file integrity check failed")
@@ -406,7 +420,7 @@ func GetSettings(attachments *ember.Attachments) (common.PythonSetupSettings, er
 }
 
 func GetHashmap(attachments *ember.Attachments) (map[string]string, error) {
-	HashReader := attachments.Reader(common.HashesFilename)
+	HashReader := attachments.Reader(common.HashmapName)
 	if HashReader == nil {
 		fmt.Println("Error reading hash. Ensure it is embedded in the binary.")
 
@@ -447,7 +461,7 @@ func ValidateHash(seeker io.ReadSeeker, expectedHash string) (actualHash string,
 	return actualHash, true
 }
 
-func ValidateHashes(attachments *ember.Attachments) bool {
+func ValidateAttachmentHashes(attachments *ember.Attachments) bool {
 
 	attachmentList := attachments.List()
 
@@ -459,7 +473,7 @@ func ValidateHashes(attachments *ember.Attachments) bool {
 	allHashesMatch := true
 
 	for _, attachment := range attachmentList {
-		if attachment == common.HashesFilename {
+		if attachment == common.HashmapName {
 			continue
 		}
 

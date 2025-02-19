@@ -24,6 +24,7 @@ type PythonSetupSettings struct {
 	FilesToCopyToRoot     []string `json:"filesToCopyToRoot"`
 	RunAfterInstall       *bool    `json:"runAfterInstall"`
 	OnlineRequirements    *bool    `json:"onlineRequirements"`
+	IgnoredPathParts      []string `json:"ignoredPathParts"`
 }
 
 // Validate checks if the required fields are present.
@@ -161,10 +162,8 @@ func mergeSettings(loaded, defaults *PythonSetupSettings) *PythonSetupSettings {
 		loaded.OnlineRequirements = defaults.OnlineRequirements
 	}
 
-	// For the slice, merge if it's empty.
-	if loaded.FilesToCopyToRoot == nil || len(loaded.FilesToCopyToRoot) == 0 {
-		loaded.FilesToCopyToRoot = defaults.FilesToCopyToRoot
-	}
+	// we can safely ignore FilesToCopyToRoot and IgnoredPathParts
+
 	// RunAfterInstall is a bool; false is a valid default.
 	return loaded
 }
@@ -188,6 +187,7 @@ func LoadOrSaveDefault(filename string) (*PythonSetupSettings, error) {
 		FilesToCopyToRoot:     []string{"requirements.txt", "readme.md", "license.md"},
 		RunAfterInstall:       boolPtr(false),
 		OnlineRequirements:    boolPtr(false),
+		IgnoredPathParts:      []string{"__pycache__", ".git", ".idea", ".vscode"},
 	}
 
 	// Attempt to load the existing configuration.

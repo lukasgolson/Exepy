@@ -52,3 +52,27 @@ func StreamToDir(IOReader io.Reader, outputDir string) error {
 
 	return nil
 }
+
+func FileMapToStream(files []string) (io.ReadSeeker, error) {
+	encoder := dirstream.NewEncoder("", dirstream.DefaultChunkSize)
+	encoderStream, err := encoder.Encode(files)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode directory: %w", err)
+	}
+
+	var buf bytes.Buffer
+
+	gzipWriter := gzip.NewWriter(&buf)
+
+	if _, err := io.Copy(gzipWriter, encoderStream); err != nil {
+		gzipWriter.Close() // ensure we close on error
+		return nil, fmt.Errorf("failed to compress data: %w", err)
+	}
+
+	// Close the gzip writer to flush all data into the buffer.
+	if err := gzipWriter.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+
+	return bytes.NewReader(buf.Bytes()), nil
+}

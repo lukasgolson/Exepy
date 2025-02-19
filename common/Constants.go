@@ -3,10 +3,11 @@ package common
 import "path/filepath"
 
 const PythonFilename = "python"
-const PayloadFilename = "payload"
-const IntegrityFilename = "integrity_hashes"
+const ScriptsFilename = "scripts"
+const ScriptIntegrityFilename = "scripts_integrity"
 const WheelsFolderName = "wheels"
-const HashesFilename = "hashes"
+const HashmapName = "hashmap"
+const CopyToRootFilename = "copy_to_root"
 
 const pipFilename = "pip.pyz"
 
