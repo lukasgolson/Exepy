@@ -159,7 +159,7 @@ func bootstrap() error {
 
 		// if requirements.txt exists, install the offline requirements first
 		if _, err := os.Stat(requirementsPath); err == nil {
-			if err := common.RunCommand(pythonPath, []string{common.GetPipName(pythonExtractDir), "install", "--find-links",
+			if err := common.RunCommand(pythonPath, []string{common.GetPipName(pythonExtractDir), "install", "--no-index", "--find-links",
 				path.Join(requiredWheelsDir) + "/", "--only-binary=:all:", "-r", requirementsPath}); err != nil {
 				fmt.Println("Error while installing requirements from disk... ")
 			}
