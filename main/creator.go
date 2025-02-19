@@ -24,11 +24,10 @@ func createInstaller() error {
 	}
 
 	pythonScriptPath := path.Join(*settings.ScriptDir, *settings.MainScript)
-	requirementsPath := path.Join(*settings.ScriptDir, *settings.RequirementsFile)
 
 	// check if payload directory exists
 	if !common.DoesPathExist(*settings.ScriptDir) {
-		println("Scripts directory does not exist: ", settings.ScriptDir)
+		println("Scripts directory does not exist: ", *settings.ScriptDir)
 		return errors.New("scripts directory does not exist")
 	}
 
@@ -40,6 +39,7 @@ func createInstaller() error {
 
 	// if requirements file is listed, check that it exists
 	if *settings.RequirementsFile != "" {
+		requirementsPath := path.Join(*settings.ScriptDir, *settings.RequirementsFile)
 		if !common.DoesPathExist(requirementsPath) {
 			println("Requirements file is listed in config but does not exist: ", requirementsPath)
 			return errors.New("requirements file does not exist")

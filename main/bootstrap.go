@@ -31,15 +31,19 @@ func bootstrap() error {
 	}
 	defer attachments.Close()
 
-	if ValidateAttachmentHashes(attachments) {
-		fmt.Println("Self-integrity validated successfully.")
-	} else {
-		return fmt.Errorf("error validating hashes")
+	if !ValidateAttachmentHashes(attachments) {
+		return fmt.Errorf("error validating installer integrity")
 	}
 
 	settings, err := GetSettings(attachments)
 	if err != nil {
 		return err
+	}
+
+	applicationName := *settings.ApplicationName
+
+	if applicationName != "" {
+		println("Installing " + applicationName)
 	}
 
 	// check if the bootstrap has already been run
@@ -236,22 +240,26 @@ func bootstrap() error {
 
 	// if main script is not set, exit, as there is nothing to run
 	if *settings.MainScript == "" {
-		fmt.Println("Files installed successfully. Exiting.")
+		fmt.Println("Files installed. Exiting.")
 		return nil
 	} else {
 
 		// Create the run.bat
-		pythonExecutable := filepath.Join(pythonExtractDir, "python.exe")
+		pythonExecutablePath := filepath.Join(pythonExtractDir, "python.exe")
 		mainScriptPath := path.Join(scriptExtractDir, *settings.MainScript)
 
 		// replace the placeholders in the runscript with the actual values
-		runScript = strings.ReplaceAll(runScript, "{{PYTHON_EXE}}", pythonExecutable)
+		runScript = strings.ReplaceAll(runScript, "{{PYTHON_EXE}}", pythonExecutablePath)
 		runScript = strings.ReplaceAll(runScript, "{{MAIN_SCRIPT}}", mainScriptPath)
 		runScript = strings.ReplaceAll(runScript, "{{SCRIPTS_DIR}}", scriptExtractDir)
 
-		err = os.WriteFile("run.bat", []byte(runScript), 0644)
+		runBatPath, err := generateRunBatPath(*settings.ApplicationName)
+		if err != nil {
+			return err
+		}
 
-		runBatPath, err := filepath.Abs("run.bat")
+		err = os.WriteFile(runBatPath, []byte(runScript), 0644)
+
 		if err != nil {
 			fmt.Println("Error getting absolute path for run.bat")
 			return err
@@ -274,6 +282,15 @@ func bootstrap() error {
 	}
 
 	return nil
+}
+
+func generateRunBatPath(appName string) (string, error) {
+	appName = strings.TrimLeft(appName, ".") // Remove leading periods
+
+	if appName == "" {
+		appName = "run"
+	}
+	return filepath.Abs(appName + ".bat")
 }
 
 func installWheels(extractDir, wheelDir string) error {
@@ -491,6 +508,12 @@ func ValidateAttachmentHashes(attachments *ember.Attachments) bool {
 		}
 
 		actualHash, hashesMatch := ValidateHash(attachmentReader, hashMap[attachment])
+
+		expected := hashMap[attachment]
+
+		if expected == "" {
+			expected = "<NOT SET>"
+		}
 
 		if !hashesMatch {
 			fmt.Println("Error validating hash for:", attachment, " -> Expected:", hashMap[attachment], "Actual:", actualHash)

@@ -9,6 +9,7 @@ import (
 
 // PythonSetupSettings holds the configuration settings.
 type PythonSetupSettings struct {
+	ApplicationName       *string  `json:applicationName`
 	PythonDownloadURL     *string  `json:"pythonDownloadURL"`
 	PipDownloadURL        *string  `json:"pipDownloadURL"`
 	PythonDownloadZip     *string  `json:"pythonDownloadFile"`
@@ -35,6 +36,10 @@ func (s *PythonSetupSettings) Validate() (err error) {
 			err = fmt.Errorf("validation error: %v", r)
 		}
 	}()
+
+	if s.ApplicationName == nil {
+		return errors.New("missing required field: ApplicationName")
+	}
 
 	// Check each pointer field before de-referencing it.
 	if s.PythonDownloadURL == nil {
@@ -162,6 +167,10 @@ func mergeSettings(loaded, defaults *PythonSetupSettings) *PythonSetupSettings {
 		loaded.OnlineRequirements = defaults.OnlineRequirements
 	}
 
+	if loaded.ApplicationName == nil {
+		loaded.ApplicationName = defaults.ApplicationName
+	}
+
 	// we can safely ignore FilesToCopyToRoot and IgnoredPathParts
 
 	// RunAfterInstall is a bool; false is a valid default.
@@ -172,8 +181,9 @@ func mergeSettings(loaded, defaults *PythonSetupSettings) *PythonSetupSettings {
 func LoadOrSaveDefault(filename string) (*PythonSetupSettings, error) {
 	// Define default settings.
 	defaults := &PythonSetupSettings{
-		PythonDownloadURL:     strPtr(""),
-		PipDownloadURL:        strPtr(""),
+		ApplicationName:       strPtr("Python Program"),
+		PythonDownloadURL:     strPtr("https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip"),
+		PipDownloadURL:        strPtr("https://bootstrap.pypa.io/pip/pip.pyz"),
 		PythonDownloadZip:     strPtr("python code-3.11.7-embed-amd64.zip"),
 		PythonExtractDir:      strPtr("python-embed"),
 		ScriptExtractDir:      strPtr("scripts"),
