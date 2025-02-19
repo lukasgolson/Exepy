@@ -66,7 +66,7 @@ func bootstrap() error {
 			return fmt.Errorf("error reading payload. Ensure it is embedded in the binary")
 		}
 
-		wheelsReader := attachments.Reader(common.WheelsFilename)
+		wheelsReader := attachments.Reader(common.WheelsFolderName)
 		if wheelsReader == nil {
 			return fmt.Errorf("error reading wheels. Ensure it is embedded in the binary")
 		}
@@ -89,7 +89,10 @@ func bootstrap() error {
 
 		fmt.Println("Extracting Wheels...")
 
-		wheelsDir := path.Join(pythonExtractDir, common.WheelsFilename)
+		wheelsDir := path.Join(pythonExtractDir, common.WheelsFolderName)
+		requiredWheelsDir := filepath.Join(wheelsDir, "required")
+		setupWheelsDir := filepath.Join(wheelsDir, "setup")
+
 		err = common.StreamToDir(wheelsReader, wheelsDir)
 		if err != nil {
 			println("error extracting wheels zip file")
@@ -125,17 +128,33 @@ func bootstrap() error {
 		fmt.Println("Installing required packages...")
 
 		pythonPath := filepath.Join(pythonExtractDir, "python.exe")
-		if err := common.RunCommand(pythonPath, []string{common.GetPipName(pythonExtractDir), "install", "pip", "setuptools", "wheel"}); err != nil {
-			fmt.Println("Error installing packages")
-			return err
+
+		// Install all setup wheels first
+		if err := installWheels(pythonExtractDir, setupWheelsDir); err != nil {
+			fmt.Println("Error installing offline wheels.")
 		}
 
-		// if requirements.txt exists, install the requirements
-		requirementsFile := *settings.RequirementsFile
-		if _, err := os.Stat(requirementsFile); err == nil {
+		requirementsPath := path.Join(scriptExtractDir, *settings.RequirementsFile)
+
+		// if requirements.txt exists, install the offline requirements first
+		if _, err := os.Stat(requirementsPath); err == nil {
 			if err := common.RunCommand(pythonPath, []string{common.GetPipName(pythonExtractDir), "install", "--find-links",
-				path.Join(wheelsDir) + "/", "--only-binary=:all:", "-r", requirementsFile}); err != nil {
+				path.Join(requiredWheelsDir) + "/", "--only-binary=:all:", "-r", requirementsPath}); err != nil {
 				fmt.Println("Error while installing requirements from disk... ")
+			}
+		}
+
+		if *settings.OnlineRequirements {
+			// Install the online requirements next
+			// Install missing requirements from PyPI *without* upgrading
+			if err := common.RunCommand(pythonPath, []string{
+				common.GetPipName(pythonExtractDir),
+				"install",
+				"--upgrade-strategy", "only-if-needed",
+				"-r", requirementsPath,
+			}); err != nil {
+				fmt.Println("Error installing missing requirements:", err)
+				return err
 			}
 		}
 
@@ -186,7 +205,7 @@ func bootstrap() error {
 
 		err, isIntegral := VerifyExtractionIntegrity(integrityData, scriptExtractDir)
 
-		if *settings.RunAfterInstall == false && isIntegral != true {
+		if isIntegral != true {
 			fmt.Println("Please rerun the installer to reinstall the environment.")
 			os.Remove("bootstrapped")
 
@@ -232,6 +251,30 @@ func bootstrap() error {
 			fmt.Println(runBatPath)
 		}
 
+	}
+
+	return nil
+}
+
+func installWheels(extractDir, wheelDir string) error {
+	pythonPath := filepath.Join(extractDir, "python.exe")
+	pipPath := common.GetPipName(extractDir)
+
+	wheelFiles, err := filepath.Glob(filepath.Join(wheelDir, "*.whl"))
+	if err != nil {
+		return fmt.Errorf("error finding wheel files: %w", err)
+	}
+
+	if len(wheelFiles) == 0 {
+		fmt.Println("No wheel files found in", wheelDir)
+		return nil
+	}
+
+	for _, wheelFile := range wheelFiles {
+		fmt.Println("Installing:", wheelFile) // Print the wheel file being installed.
+		if err := common.RunCommand(pythonPath, []string{pipPath, "install", wheelFile}); err != nil {
+			return fmt.Errorf("error installing wheel %s: %w", wheelFile, err)
+		}
 	}
 
 	return nil

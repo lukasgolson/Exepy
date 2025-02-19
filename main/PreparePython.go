@@ -47,7 +47,8 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 		return nil, nil, err
 	}
 
-	wheelsPath := filepath.Join(*settings.PythonExtractDir, "wheels")
+	wheelsPath := filepath.Join(*settings.PythonExtractDir, common.WheelsFolderName)
+
 	os.Mkdir(wheelsPath, os.ModePerm)
 
 	if *settings.InstallerRequirements != "" {
@@ -56,6 +57,7 @@ func PreparePython(settings common.PythonSetupSettings) (io.ReadSeeker, io.ReadS
 			if err := buildRequirementWheels(*settings.PythonExtractDir, *settings.InstallerRequirements, wheelsPath); err != nil {
 				return nil, nil, err
 			}
+
 		} else {
 			fmt.Println("Installer requirements file not found but is specified in configuration:", settings.InstallerRequirements)
 		}
@@ -142,17 +144,40 @@ func updatePTHFile(settings *common.PythonSetupSettings) error {
 	return err
 }
 
-func buildRequirementWheels(extractDir, requirementsFile, wheelDir string) error {
+func buildRequirementWheels(extractDir, requirementsFile, wheelsPath string) error {
 
 	pythonPath := filepath.Join(extractDir, "python.exe")
+	pipPath := common.GetPipName(extractDir) // Get pip path once
 
-	if err := common.RunCommand(pythonPath, []string{common.GetPipName(extractDir), "install", "pip", "setuptools", "wheel"}); err != nil {
-		fmt.Println("Error building wheels:", err)
+	// Install pip, setuptools, and wheel (if not already installed)
+	if err := common.RunCommand(pythonPath, []string{pipPath, "install", "--upgrade", "pip", "setuptools", "wheel"}); err != nil {
+		fmt.Println("Error installing/upgrading pip, setuptools, wheel:", err)
 		return err
 	}
 
-	if err := common.RunCommand(pythonPath, []string{common.GetPipName(extractDir), "wheel", "-w", wheelDir, "-r", requirementsFile}); err != nil {
-		fmt.Println("Error building wheels:", err)
+	requiredWheelsDir := filepath.Join(wheelsPath, "required")
+	setupWheelsDir := filepath.Join(wheelsPath, "setup")
+
+	// Create wheel directory if it doesn't exist.  Important to avoid errors later.
+	if err := os.MkdirAll(requiredWheelsDir, os.ModePerm); err != nil {
+		fmt.Println("Error creating required wheel directory:", err)
+		return err
+	}
+
+	if err := os.MkdirAll(setupWheelsDir, os.ModePerm); err != nil {
+		fmt.Println("Error creating setup wheel directory:", err)
+		return err
+	}
+
+	// Build wheels for requirements
+	if err := common.RunCommand(pythonPath, []string{pipPath, "wheel", "-w", requiredWheelsDir, "-r", requirementsFile}); err != nil {
+		fmt.Println("Error building requirement wheels:", err)
+		return err
+	}
+
+	// Build wheel for setuptools.
+	if err := common.RunCommand(pythonPath, []string{pipPath, "wheel", "-w", setupWheelsDir, "setuptools", "pip"}); err != nil {
+		fmt.Println("Error building setuptools/wheel wheels:", err)
 		return err
 	}
 

@@ -23,6 +23,7 @@ type PythonSetupSettings struct {
 	MainScript            *string  `json:"mainScript"`
 	FilesToCopyToRoot     []string `json:"filesToCopyToRoot"`
 	RunAfterInstall       *bool    `json:"runAfterInstall"`
+	OnlineRequirements    *bool    `json:"onlineRequirements"`
 }
 
 // Validate checks if the required fields are present.
@@ -156,6 +157,10 @@ func mergeSettings(loaded, defaults *PythonSetupSettings) *PythonSetupSettings {
 		loaded.RunAfterInstall = defaults.RunAfterInstall
 	}
 
+	if loaded.OnlineRequirements == nil {
+		loaded.OnlineRequirements = defaults.OnlineRequirements
+	}
+
 	// For the slice, merge if it's empty.
 	if loaded.FilesToCopyToRoot == nil || len(loaded.FilesToCopyToRoot) == 0 {
 		loaded.FilesToCopyToRoot = defaults.FilesToCopyToRoot
@@ -182,6 +187,7 @@ func LoadOrSaveDefault(filename string) (*PythonSetupSettings, error) {
 		MainScript:            strPtr("main.py"),
 		FilesToCopyToRoot:     []string{"requirements.txt", "readme.md", "license.md"},
 		RunAfterInstall:       boolPtr(false),
+		OnlineRequirements:    boolPtr(false),
 	}
 
 	// Attempt to load the existing configuration.

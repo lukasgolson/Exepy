@@ -29,20 +29,20 @@ func createInstaller() error {
 	// check if payload directory exists
 	if !common.DoesPathExist(*settings.ScriptDir) {
 		println("Scripts directory does not exist: ", settings.ScriptDir)
-		return errors.New("Scripts directory does not exist")
+		return errors.New("scripts directory does not exist")
 	}
 
 	// check if payload directory has the main file
 	if !common.DoesPathExist(pythonScriptPath) {
 		println("Main file does not exist: ", pythonScriptPath)
-		return errors.New("Main file does not exist")
+		return errors.New("main file does not exist")
 	}
 
 	// if requirements file is listed, check that it exists
 	if *settings.RequirementsFile != "" {
 		if !common.DoesPathExist(requirementsPath) {
 			println("Requirements file is listed in config but does not exist: ", requirementsPath)
-			return errors.New("Requirements file does not exist")
+			return errors.New("requirements file does not exist")
 		}
 	}
 
@@ -119,7 +119,7 @@ func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegr
 	embedMap[common.IntegrityFilename] = PayloadIntegrity
 	embedMap[common.PythonFilename] = PythonRS
 	embedMap[common.PayloadFilename] = PayloadRS
-	embedMap[common.WheelsFilename] = wheelsFile
+	embedMap[common.WheelsFolderName] = wheelsFile
 	embedMap[common.GetConfigEmbedName()] = SettingsFile
 
 	return embedMap
@@ -155,7 +155,7 @@ func HashFiles(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadHashes io.R
 	hashMap[common.PythonFilename] = PythonHash
 	hashMap[common.PayloadFilename] = PayloadHash
 	hashMap[common.IntegrityFilename] = PayloadIntegrityHash
-	hashMap[common.WheelsFilename] = wheelsFileHash
+	hashMap[common.WheelsFolderName] = wheelsFileHash
 	hashMap[common.GetConfigEmbedName()] = SettingsFileHash
 
 	// print the hashes
