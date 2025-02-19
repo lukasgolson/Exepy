@@ -100,7 +100,38 @@ func createInstaller() error {
 
 	PayloadHashesReader := bytes.NewReader(PayloadHashesJson)
 
-	embedMap := createEmbedMap(pythonFile, PayloadFile, wheelsFile, SettingsFile, PayloadHashesReader, CopyToRoot)
+	var SettingsFile2 io.ReadSeeker = SettingsFile
+	var PayloadIntegrity io.ReadSeeker = PayloadHashesReader
+
+	embedMap := make(map[string]io.ReadSeeker)
+	embedMap[common.PythonFilename] = pythonFile
+	embedMap[common.ScriptsFilename] = PayloadFile
+	embedMap[common.ScriptIntegrityFilename] = PayloadIntegrity
+	embedMap[common.WheelsFolderName] = wheelsFile
+	embedMap[common.CopyToRootFilename] = CopyToRoot
+	embedMap[common.GetConfigEmbedName()] = SettingsFile2
+
+	themeWavPath := path.Join(currentWorkingDir, "theme.wav")
+	if common.DoesPathExist(themeWavPath) {
+		println("Theme.wav found in working directory. Embedding as background music.")
+		themeWavFile, err := os.Open(themeWavPath)
+		if err != nil {
+			return err
+		}
+		defer themeWavFile.Close()
+
+		buffer := new(bytes.Buffer)
+		if _, err := io.Copy(buffer, themeWavFile); err != nil {
+			return err
+		}
+		embedMap["theme.wav"] = bytes.NewReader(buffer.Bytes())
+	}
+
+	hashMap := calculateHashesFromMap(embedMap)
+	var hashBytes = new(bytes.Buffer)
+	json.NewEncoder(hashBytes).Encode(hashMap)
+
+	embedMap[common.HashmapName] = bytes.NewReader(hashBytes.Bytes())
 
 	if err := writeExecutable(file, embedMap); err != nil {
 		return err
@@ -132,26 +163,6 @@ func createInstaller() error {
 
 	return nil
 
-}
-
-func createEmbedMap(PythonRS, PayloadRS, wheelsFile, SettingsFile, PayloadIntegrity, CopyToRootFile io.ReadSeeker) map[string]io.ReadSeeker {
-
-	embedMap := make(map[string]io.ReadSeeker)
-
-	embedMap[common.PythonFilename] = PythonRS
-	embedMap[common.ScriptsFilename] = PayloadRS
-	embedMap[common.ScriptIntegrityFilename] = PayloadIntegrity
-	embedMap[common.WheelsFolderName] = wheelsFile
-	embedMap[common.CopyToRootFilename] = CopyToRootFile
-	embedMap[common.GetConfigEmbedName()] = SettingsFile
-
-	hashMap := calculateHashesFromMap(embedMap)
-	var hashBytes = new(bytes.Buffer)
-	json.NewEncoder(hashBytes).Encode(hashMap)
-
-	embedMap[common.HashmapName] = bytes.NewReader(hashBytes.Bytes())
-
-	return embedMap
 }
 
 func calculateHashesFromMap(embedMap map[string]io.ReadSeeker) map[string]string {

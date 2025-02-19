@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"github.com/maja42/ember"
+	"io"
 	"os"
 )
 
@@ -35,6 +36,9 @@ func main() {
 		return
 	}
 
+	// Play the installer theme if it exists.
+	_ = playInstallerTheme()
+
 	if embedded {
 		fmt.Println("Installing Python script...")
 		err := bootstrap()
@@ -43,10 +47,12 @@ func main() {
 		}
 	} else {
 		PrintHeader() // Only print the header if we're in creator mode.
-		// Not needed for installer as we don't want to be intrusive.
 
 		fmt.Println("No scripts have been embedded. Running in creator mode.")
-		createInstaller()
+		err = createInstaller()
+		if err != nil {
+			panic(err)
+		}
 	}
 
 }
@@ -62,11 +68,53 @@ func checkIfEmbedded() (bool, error) {
 
 	attachmentList := attachments.List()
 
-	if len(attachmentList) == 0 {
+	// If there are no attachments or only theme.wav, we're in creator mode.
+
+	if len(attachmentList) == 0 || (len(attachmentList) == 1 && attachmentList[0] == "theme.wav") {
 		return false, nil
 	} else {
 		return true, nil
 	}
+
+}
+
+func playInstallerTheme() error {
+	attachments, err := ember.Open()
+	if err != nil {
+		fmt.Println("Error opening attachments:", err)
+		return err
+	}
+	defer attachments.Close()
+
+	// Attempt to directly open "theme.wav"
+	audioFile := attachments.Reader("theme.wav")
+	if audioFile == nil {
+		return fmt.Errorf("theme.wav not found in attachments")
+	}
+
+	// Load the file into a byte array.
+	audioBytes, err := io.ReadAll(audioFile)
+	if err != nil {
+		return fmt.Errorf("failed to read audio file: %w", err)
+	}
+
+	// Create a new slice and copy the audio data into it.
+	copiedAudio := make([]byte, len(audioBytes))
+	copy(copiedAudio, audioBytes)
+
+	// Store the data globally so that it stays alive.
+	themeWavData = copiedAudio
+
+	// Start playback in a separate goroutine.
+	go func(data []byte) {
+		if err := playWavFromByteArray(data); err != nil {
+			fmt.Println("Error playing theme:", err)
+		}
+		// Optionally, once playback is complete, clear the global variable.
+		// themeWavData = nil
+	}(themeWavData)
+
+	return nil
 }
 
 func PrintHeader() {

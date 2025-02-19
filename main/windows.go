@@ -7,7 +7,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"unsafe"
+)
+
+var (
+	winmm          = syscall.NewLazyDLL("winmm.dll")
+	procPlaySoundW = winmm.NewProc("PlaySoundW")
+	themeWavData   []byte
 )
 
 var (
@@ -59,4 +66,31 @@ func isLaunchedFromExplorer() bool {
 
 	baseName := filepath.Base(processNameStr)
 	return strings.EqualFold(baseName, "explorer.exe")
+}
+
+const (
+	SND_SYNC      = 0x0000 // play synchronously (default)
+	SND_ASYNC     = 0x0001 // play asynchronously
+	SND_NODEFAULT = 0x0002 // don't use default sound if not found
+	SND_MEMORY    = 0x0004 // sound data is in memory
+	SND_LOOP      = 0x0008 // loop the sound until next PlaySound call
+)
+
+// playWavFromByteArray plays a WAV file stored in a byte array.
+// The WAV data must be complete with a valid header.
+func playWavFromByteArray(wavData []byte) error {
+	if len(wavData) == 0 {
+		return fmt.Errorf("wavData is empty")
+	}
+	ret, _, err := procPlaySoundW.Call(
+		uintptr(unsafe.Pointer(&wavData[0])),
+		0,
+		uintptr(SND_ASYNC|SND_MEMORY|SND_NODEFAULT|SND_LOOP),
+	)
+	if ret == 0 {
+		return fmt.Errorf("PlaySoundW failed: %v", err)
+	}
+	// Use runtime.KeepAlive to ensure wavData isn’t garbage-collected until after PlaySoundW returns.
+	runtime.KeepAlive(wavData)
+	return nil
 }

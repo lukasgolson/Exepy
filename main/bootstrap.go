@@ -457,6 +457,12 @@ func ValidateHash(seeker io.ReadSeeker, expectedHash string) (actualHash string,
 		return "", false
 	}
 
+	// if the expected hash is empty, return the actual hash and true to indicate that the hash is valid.
+	// This is useful for files that do not have a hash to compare against.
+	if expectedHash == "" {
+		return actualHash, true
+	}
+
 	if actualHash != expectedHash {
 		return actualHash, false
 	}
