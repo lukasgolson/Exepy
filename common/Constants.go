@@ -18,3 +18,5 @@ func GetConfigEmbedName() string {
 func GetPipName(extractDir string) string {
 	return filepath.Join(extractDir, pipFilename)
 }
+
+const ThemeMusicSupport = true

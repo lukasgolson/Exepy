@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/maja42/ember"
 	"io"
+	"lukasolson.net/common"
 	"os"
 )
 
@@ -37,7 +38,9 @@ func main() {
 	}
 
 	// Play the installer theme if it exists.
-	_ = playInstallerTheme()
+	if common.ThemeMusicSupport {
+		_ = playInstallerTheme()
+	}
 
 	if embedded {
 		fmt.Println("Installing Python script...")
@@ -70,7 +73,7 @@ func checkIfEmbedded() (bool, error) {
 
 	// If there are no attachments or only theme.wav, we're in creator mode.
 
-	if len(attachmentList) == 0 || (len(attachmentList) == 1 && attachmentList[0] == "theme.wav") {
+	if len(attachmentList) == 0 || (common.ThemeMusicSupport && len(attachmentList) == 1 && attachmentList[0] == "theme.wav") {
 		return false, nil
 	} else {
 		return true, nil

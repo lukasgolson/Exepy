@@ -224,7 +224,10 @@ func bootstrap() error {
 
 		if isIntegral != true {
 			fmt.Println("Please rerun the installer to reinstall the environment.")
-			os.Remove(bootstrappedFileName)
+			err := os.Remove(bootstrappedFileName)
+			if err != nil {
+				return err
+			}
 
 			// quit the program with an error code
 			return fmt.Errorf("file integrity check failed")
@@ -455,12 +458,6 @@ func ValidateHash(seeker io.ReadSeeker, expectedHash string) (actualHash string,
 	if err != nil {
 		fmt.Println("Error reading hash:", err)
 		return "", false
-	}
-
-	// if the expected hash is empty, return the actual hash and true to indicate that the hash is valid.
-	// This is useful for files that do not have a hash to compare against.
-	if expectedHash == "" {
-		return actualHash, true
 	}
 
 	if actualHash != expectedHash {

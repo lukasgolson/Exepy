@@ -111,20 +111,22 @@ func createInstaller() error {
 	embedMap[common.CopyToRootFilename] = CopyToRoot
 	embedMap[common.GetConfigEmbedName()] = SettingsFile2
 
-	themeWavPath := path.Join(currentWorkingDir, "theme.wav")
-	if common.DoesPathExist(themeWavPath) {
-		println("Theme.wav found in working directory. Embedding as background music.")
-		themeWavFile, err := os.Open(themeWavPath)
-		if err != nil {
-			return err
-		}
-		defer themeWavFile.Close()
+	if common.ThemeMusicSupport {
+		themeWavPath := path.Join(currentWorkingDir, "theme.wav")
+		if common.DoesPathExist(themeWavPath) {
+			println("Theme.wav found in working directory. Embedding as background music.")
+			themeWavFile, err := os.Open(themeWavPath)
+			if err != nil {
+				return err
+			}
+			defer themeWavFile.Close()
 
-		buffer := new(bytes.Buffer)
-		if _, err := io.Copy(buffer, themeWavFile); err != nil {
-			return err
+			buffer := new(bytes.Buffer)
+			if _, err := io.Copy(buffer, themeWavFile); err != nil {
+				return err
+			}
+			embedMap["theme.wav"] = bytes.NewReader(buffer.Bytes())
 		}
-		embedMap["theme.wav"] = bytes.NewReader(buffer.Bytes())
 	}
 
 	hashMap := calculateHashesFromMap(embedMap)
