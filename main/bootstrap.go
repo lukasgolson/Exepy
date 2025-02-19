@@ -404,7 +404,7 @@ func ValidateExecutableHash() (exit bool) {
 			exeName = os.Args[0]
 		}
 
-		fmt.Println("certutil -hashfile", exeName, "MD5")
+		fmt.Println("certutil -hashfile", "'"+exeName+"'", "MD5")
 		fmt.Println("Note: If hash values do not match, the file may have been tampered with.")
 
 		common.PressButtonToContinue("Press enter to continue...")

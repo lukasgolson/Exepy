@@ -43,7 +43,6 @@ func main() {
 	}
 
 	if embedded {
-		fmt.Println("Installing Python script...")
 		err := bootstrap()
 		if err != nil {
 			panic(err)
