@@ -49,6 +49,10 @@ func bootstrap() error {
 	// check if the bootstrap has already been run
 	scriptExtractDir := *settings.ScriptExtractDir
 
+	if *settings.ScriptExtractDir == "" {
+		scriptExtractDir, _ = os.Getwd()
+	}
+
 	pythonExtractDir := *settings.PythonExtractDir
 
 	integrityChecked := false
@@ -290,6 +294,26 @@ func generateRunBatPath(appName string) (string, error) {
 	if appName == "" {
 		appName = "run"
 	}
+
+	appName = strings.ReplaceAll(appName, " ", "-")
+
+	appName = strings.ReplaceAll(appName, ".", "-")
+
+	appName = strings.ReplaceAll(appName, "_", "-")
+
+	appName = strings.ReplaceAll(appName, ":", "-")
+
+	appName = strings.ReplaceAll(appName, "/", "-")
+
+	appName = strings.ReplaceAll(appName, "\\", "-")
+
+	appName = strings.ReplaceAll(appName, "*", "-")
+
+	appName = strings.ReplaceAll(appName, "?", "-")
+
+	// set to lowercase
+	appName = strings.ToLower(appName)
+
 	return filepath.Abs(appName + ".bat")
 }
 

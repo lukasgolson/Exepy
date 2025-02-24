@@ -46,7 +46,9 @@ func createInstaller() error {
 		}
 	}
 
-	file, err := os.CreateTemp("", "installer*.exe")
+	workingDirectory, _ := os.Getwd()
+
+	file, err := os.CreateTemp(workingDirectory, "installer-*.tmp")
 	if err != nil {
 		return err
 	}
@@ -156,6 +158,10 @@ func createInstaller() error {
 
 	// move the file to bootstrap.exe
 	err = os.Rename(file.Name(), "installer.exe")
+
+	if err != nil {
+		panic(err)
+	}
 
 	if err := common.SaveContentsToFile("hash.txt", outputExeHash); err != nil {
 		println("Error saving hash to file")

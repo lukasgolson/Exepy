@@ -7,21 +7,58 @@ import (
 	"strings"
 )
 
-func sanitizePath(destPath, filePath string) (string, error) {
-	destPath = filepath.Clean(destPath) + string(filepath.Separator) // Ensure trailing slash for directory
-	joinedPath := filepath.Join(destPath, filePath)
-	cleanPath := filepath.Clean(joinedPath)
+func sanitizePath(rootPath, filePath string) (string, error) {
+	// Convert rootPath to an absolute path and clean it.
+	absRootPath, err := filepath.Abs(rootPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve destination path: %w", err)
+	}
+	absRootPath = filepath.Clean(absRootPath)
+	// Ensure trailing separator for proper prefix checking.
+	if !strings.HasSuffix(absRootPath, string(filepath.Separator)) {
+		absRootPath += string(filepath.Separator)
+	}
 
-	if !strings.HasPrefix(cleanPath, destPath) {
-		return "", fmt.Errorf("invalid path: %s", filePath) // Prevent directory traversal
+	// If filePath is empty or ".", return absRootPath directly.
+	if filePath == "" || filePath == "." {
+		return absRootPath, nil
 	}
-	if strings.Contains(cleanPath, "..") { // Additional check
-		return "", fmt.Errorf("invalid path contains '..': %s", filePath)
-	}
-	if filepath.IsAbs(filePath) { // Check absolute file paths
+
+	// Reject absolute file paths immediately.
+	if filepath.IsAbs(filePath) {
 		return "", fmt.Errorf("invalid path: absolute paths not allowed: %s", filePath)
 	}
-	return cleanPath, nil
+
+	// Join rootPath and filePath, then clean the result.
+	joinedPath := filepath.Join(absRootPath, filePath)
+	cleanPath := filepath.Clean(joinedPath)
+
+	// Convert the cleaned path to an absolute path.
+	absCleanPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve clean path: %w", err)
+	}
+	absCleanPath = filepath.Clean(absCleanPath)
+
+	// Allow if the cleaned path equals the root path.
+	if absCleanPath == absRootPath {
+		return absCleanPath, nil
+	}
+
+	// Prevent directory traversal: ensure the absolute clean path starts with the absolute root path.
+	if !strings.HasPrefix(absCleanPath, absRootPath) {
+		return "", fmt.Errorf("invalid path: %s", filePath)
+	}
+
+	// Check each component of the path; reject if any are exactly "..".
+	parts := strings.Split(absCleanPath, string(filepath.Separator))
+	for _, part := range parts {
+		if part == ".." {
+			return "", fmt.Errorf("invalid path contains '..': %s", filePath)
+		}
+	}
+
+	return absCleanPath, nil
 }
 
 func BuildRelativeFileList(rootPath string, excludes []string) ([]string, error) {

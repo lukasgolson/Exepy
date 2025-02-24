@@ -23,10 +23,6 @@ func NewDecoder(destPath string, strictMode bool, chunkSize int) (*Decoder, erro
 		chunkSize = DefaultChunkSize
 	}
 
-	if destPath == "" || destPath == "." {
-		return nil, errors.New("invalid destination path")
-	}
-
 	return &Decoder{destPath: destPath, strictMode: strictMode, chunkSize: chunkSize}, nil
 }
 
