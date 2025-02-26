@@ -10,13 +10,17 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
 const bootstrappedFileName = "bootstrapped"
 
 //go:embed run.bat
-var runScript string
+var runScriptWindows string
+
+//go:embed run.sh
+var runScriptLinux string
 
 func bootstrap() error {
 
@@ -45,6 +49,8 @@ func bootstrap() error {
 	if applicationName != "" {
 		println("Installing " + applicationName)
 	}
+
+	confirmExtractionDir()
 
 	// check if the bootstrap has already been run
 	scriptExtractDir := *settings.ScriptExtractDir
@@ -248,24 +254,10 @@ func bootstrap() error {
 		return nil
 	} else {
 
-		// Create the run.bat
-		pythonExecutablePath := filepath.Join(pythonExtractDir, "python.exe")
-		mainScriptPath := path.Join(scriptExtractDir, *settings.MainScript)
-
-		// replace the placeholders in the runscript with the actual values
-		runScript = strings.ReplaceAll(runScript, "{{PYTHON_EXE}}", pythonExecutablePath)
-		runScript = strings.ReplaceAll(runScript, "{{MAIN_SCRIPT}}", mainScriptPath)
-		runScript = strings.ReplaceAll(runScript, "{{SCRIPTS_DIR}}", scriptExtractDir)
-
-		runBatPath, err := generateRunBatPath(*settings.ApplicationName)
-		if err != nil {
-			return err
-		}
-
-		err = os.WriteFile(runBatPath, []byte(runScript), 0644)
+		runBatPath, err := createRunScript(pythonExtractDir, scriptExtractDir, path.Join(scriptExtractDir, *settings.MainScript), *settings.RunScriptFileStem)
 
 		if err != nil {
-			fmt.Println("Error getting absolute path for run.bat")
+			fmt.Println("Error creating run script")
 			return err
 		}
 
@@ -288,33 +280,55 @@ func bootstrap() error {
 	return nil
 }
 
-func generateRunBatPath(appName string) (string, error) {
-	appName = strings.TrimLeft(appName, ".") // Remove leading periods
-
-	if appName == "" {
-		appName = "run"
+func confirmExtractionDir() {
+	// if the current directory contains files other than this executable, ask the user to confirm the extraction directory
+	files, err := common.ListFilesInDir(".")
+	if err != nil {
+		fmt.Println("Error listing files in directory:", err)
 	}
 
-	appName = strings.ReplaceAll(appName, " ", "-")
+	if len(files) > 1 {
+		fmt.Println("Warning: The current directory contains files other than this executable.")
+		fmt.Println("This may cause conflicts with the extracted files.")
+		fmt.Println("Please ensure the extraction directory is empty before continuing.")
+		common.PressButtonToContinue("Press enter to continue with installation...")
+	}
+}
 
-	appName = strings.ReplaceAll(appName, ".", "-")
+func createRunScript(pythonExtractDir string, scriptExtractDir string, mainScriptPath string, runScriptStem string) (string, error) {
+	// Create the run.bat
+	pythonExecutablePath := filepath.Join(pythonExtractDir, "python.exe")
 
-	appName = strings.ReplaceAll(appName, "_", "-")
+	var runscript string
 
-	appName = strings.ReplaceAll(appName, ":", "-")
+	if runtime.GOOS == "windows" {
+		runscript = runScriptWindows
+	} else {
+		runscript = runScriptLinux
+	}
 
-	appName = strings.ReplaceAll(appName, "/", "-")
+	// replace the placeholders in the runscript with the actual values
+	runscript = strings.ReplaceAll(runscript, "{{PYTHON_EXE}}", pythonExecutablePath)
+	runscript = strings.ReplaceAll(runscript, "{{MAIN_SCRIPT}}", mainScriptPath)
+	runscript = strings.ReplaceAll(runscript, "{{SCRIPTS_DIR}}", scriptExtractDir)
 
-	appName = strings.ReplaceAll(appName, "\\", "-")
+	if runScriptStem == "" {
+		runScriptStem = "run"
+	}
+	// if OS is windows, add the .bat extension
+	if runtime.GOOS == "windows" {
+		runScriptStem += ".bat"
+	} else {
+		runScriptStem += ".sh"
+	}
+	runBatPath, err := filepath.Abs(runScriptStem)
+	if err != nil {
+		return "", err
+	}
 
-	appName = strings.ReplaceAll(appName, "*", "-")
+	err = os.WriteFile(runBatPath, []byte(runscript), 0644)
 
-	appName = strings.ReplaceAll(appName, "?", "-")
-
-	// set to lowercase
-	appName = strings.ToLower(appName)
-
-	return filepath.Abs(appName + ".bat")
+	return runBatPath, err
 }
 
 func installWheels(extractDir, wheelDir string) error {

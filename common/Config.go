@@ -9,7 +9,8 @@ import (
 
 // PythonSetupSettings holds the configuration settings.
 type PythonSetupSettings struct {
-	ApplicationName       *string  `json:applicationName`
+	ApplicationName       *string  `json:"applicationName"`
+	RunScriptFileStem     *string  `json:"runScriptFileStem"`
 	PythonDownloadURL     *string  `json:"pythonDownloadURL"`
 	PipDownloadURL        *string  `json:"pipDownloadURL"`
 	PythonDownloadZip     *string  `json:"pythonDownloadFile"`
@@ -39,6 +40,14 @@ func (s *PythonSetupSettings) Validate() (err error) {
 
 	if s.ApplicationName == nil {
 		return errors.New("missing required field: ApplicationName")
+	}
+
+	if s.RunScriptFileStem == nil {
+		return errors.New("missing required field: RunScriptFileStem")
+	}
+
+	if *s.RunScriptFileStem == "" {
+		return errors.New("required field is empty: RunScriptFileStem")
 	}
 
 	// Check each pointer field before de-referencing it.
@@ -182,6 +191,7 @@ func LoadOrSaveDefault(filename string) (*PythonSetupSettings, error) {
 	// Define default settings.
 	defaults := &PythonSetupSettings{
 		ApplicationName:       strPtr("Python Program"),
+		RunScriptFileStem:     strPtr("run"),
 		PythonDownloadURL:     strPtr("https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip"),
 		PipDownloadURL:        strPtr("https://bootstrap.pypa.io/pip/pip.pyz"),
 		PythonDownloadZip:     strPtr("python code-3.11.7-embed-amd64.zip"),
@@ -216,8 +226,6 @@ func LoadOrSaveDefault(filename string) (*PythonSetupSettings, error) {
 	if err := merged.Validate(); err != nil {
 		return nil, err
 	}
-
-	// Check for incomplete settings.
 
 	// Save the merged configuration back to the file.
 	if err := saveSettings(filename, merged); err != nil {

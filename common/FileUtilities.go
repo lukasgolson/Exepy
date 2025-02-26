@@ -75,3 +75,19 @@ func SaveContentsToFile(filename, contents string) error {
 	_, err = hashFile.WriteString(contents)
 	return err
 }
+
+func ListFilesInDir(dir string) ([]string, error) {
+
+	var files []string
+
+	fileInfo, err := os.ReadDir(dir)
+	if err != nil {
+		return files, err
+	}
+
+	for _, file := range fileInfo {
+		files = append(files, file.Name())
+	}
+
+	return files, nil
+}
